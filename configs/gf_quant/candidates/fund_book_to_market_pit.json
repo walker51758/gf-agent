@@ -1,0 +1,17 @@
+{
+  "name": "fund_book_to_market_pit",
+  "family": "fundamental",
+  "hypothesis": "Higher point-in-time parent equity relative to current market value earns a value premium.",
+  "expression": "cs_rank(balance__parent_equity / mv)",
+  "base_path": "G:/base",
+  "lookback_days": 1200,
+  "artifact_path": "G:/gf_quant_agent/artifacts/fund_book_to_market_pit.parquet",
+  "evaluation": {
+    "start": "2024-01-01",
+    "end": "2026-04-16",
+    "label_horizon": 5,
+    "quantile": 0.2,
+    "min_cross_section": 100,
+    "sample_step": 5
+  }
+}

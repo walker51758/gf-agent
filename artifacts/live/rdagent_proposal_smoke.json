@@ -1,0 +1,21 @@
+{
+  "provider": "deepseek",
+  "model": "deepseek-v4-flash",
+  "base_url": "https://api.deepseek.com",
+  "family": "price_volume",
+  "status": "success",
+  "candidates": [
+    {
+      "name": "volume_reversal_5",
+      "expression": "-pct_change(adjclose,5) * (ts_mean(volume,5) / ts_std(volume,20))"
+    },
+    {
+      "name": "turnover_stability",
+      "expression": "-ts_std(turnover,20) / (ts_mean(turnover,20) + 1e-6)"
+    },
+    {
+      "name": "amihud_illiq_proxy",
+      "expression": "signed_log(ts_mean(((adjhigh - adjlow) / adjclose) / (amount/1e8), 20))"
+    }
+  ]
+}

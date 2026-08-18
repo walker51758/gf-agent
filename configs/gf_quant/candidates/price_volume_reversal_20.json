@@ -1,0 +1,17 @@
+{
+  "name": "pv_reversal_20",
+  "family": "price_volume",
+  "hypothesis": "Twenty-day overreaction mean-reverts in the cross-section.",
+  "expression": "-pct_change(adjclose, 20)",
+  "base_path": "G:/base",
+  "lookback_days": 180,
+  "artifact_path": "G:/gf_quant_agent/artifacts/pv_reversal_20.parquet",
+  "evaluation": {
+    "start": "2024-01-01",
+    "end": "2026-04-16",
+    "label_horizon": 5,
+    "quantile": 0.2,
+    "min_cross_section": 100,
+    "sample_step": 5
+  }
+}

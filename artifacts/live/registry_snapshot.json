@@ -1,0 +1,118 @@
+[
+  {
+    "factor_id": "gf_62d0fdc58f40c3d5",
+    "name": "pv_reversal_20",
+    "family": "price_volume",
+    "expression": "-pct_change(adjclose, 20)",
+    "status": "accepted",
+    "metrics": {
+      "IC": 0.04407890851919537,
+      "ICIR": 0.3320572595275821,
+      "IC_std": 0.13274490243612333,
+      "Rank_IC": 0.07557559748418685,
+      "Rank_ICIR": 0.487396951448061,
+      "Rank_IC_std": 0.15505964339672423,
+      "annualized_return": 0.16129716161544314,
+      "coverage": 0.9982819053069274,
+      "ic_observations": 110,
+      "long_short_spread_daily": 0.0006400681016485839,
+      "max_drawdown": -0.2716988919917833,
+      "observations": 551,
+      "sharpe": 0.6988304310332019,
+      "stability_by_year": {
+        "2024": {
+          "annualized_return": 0.15045602418803328,
+          "days": 241,
+          "sharpe": 0.5026303823928363
+        },
+        "2025": {
+          "annualized_return": 0.25164513633266794,
+          "days": 243,
+          "sharpe": 1.59069778994131
+        },
+        "2026": {
+          "annualized_return": -0.12738707325440554,
+          "days": 67,
+          "sharpe": -0.7916195881803162
+        }
+      },
+      "turnover": 0.35519058830099304,
+      "win_rate": 0.5063520871143375
+    },
+    "artifact_path": "G:/gf_quant_agent/artifacts/pv_reversal_20.parquet",
+    "artifact_checksum": "33d4009756be873d9b27dd78bced8363074ed2e7d20e1c3ec593f051241e5963",
+    "dedup_of": null,
+    "metadata": {
+      "dedup_reason": "no_duplicate_signal",
+      "evaluation": {
+        "end": "2026-04-16",
+        "label_horizon": 5,
+        "min_cross_section": 100,
+        "quantile": 0.2,
+        "sample_step": 5,
+        "start": "2024-01-01"
+      },
+      "gate_failures": [],
+      "hypothesis": "",
+      "source_result": "artifacts\\live\\pv_reversal_20.json"
+    }
+  },
+  {
+    "factor_id": "gf_2cda7319e247b9d0",
+    "name": "fund_book_to_market_pit",
+    "family": "fundamental",
+    "expression": "cs_rank(balance__parent_equity / mv)",
+    "status": "accepted",
+    "metrics": {
+      "IC": 0.014892837831731098,
+      "ICIR": 0.12941844226442115,
+      "IC_std": 0.11507508181332311,
+      "Rank_IC": 0.04957432273412897,
+      "Rank_ICIR": 0.3270774435918482,
+      "Rank_IC_std": 0.15156753761348193,
+      "annualized_return": 0.08391396615181766,
+      "coverage": 0.9992265982743399,
+      "ic_observations": 110,
+      "long_short_spread_daily": 0.0003329919291738796,
+      "max_drawdown": -0.15511361709235683,
+      "observations": 551,
+      "sharpe": 0.5324792903543564,
+      "stability_by_year": {
+        "2024": {
+          "annualized_return": 0.21797542191068445,
+          "days": 241,
+          "sharpe": 1.34943266727105
+        },
+        "2025": {
+          "annualized_return": -0.011011751690129593,
+          "days": 243,
+          "sharpe": -0.07442956777455625
+        },
+        "2026": {
+          "annualized_return": -0.054024263733163345,
+          "days": 67,
+          "sharpe": -0.3051243327695579
+        }
+      },
+      "turnover": 0.03741032611499266,
+      "win_rate": 0.5081669691470054
+    },
+    "artifact_path": "G:/gf_quant_agent/artifacts/fund_book_to_market_pit.parquet",
+    "artifact_checksum": "48e07af4094502e5b8dde34afa7c7e8175f4c9e0d7d5ac9a7be2c0c4d1e03a18",
+    "dedup_of": null,
+    "metadata": {
+      "dedup_reason": "no_duplicate_signal",
+      "evaluation": {
+        "end": "2026-04-16",
+        "label_horizon": 5,
+        "min_cross_section": 100,
+        "quantile": 0.2,
+        "sample_step": 5,
+        "start": "2024-01-01"
+      },
+      "gate_failures": [],
+      "hypothesis": "",
+      "source_result": "artifacts\\live\\fund_book_to_market_pit.json"
+    }
+  }
+]
