@@ -1,29 +1,35 @@
-"""
-GF (GuangFa Securities) factor workflow with session control.
+"""Remote-first GF (GuangFa Securities) RD-Agent factor loop."""
 
-The loop logic is identical to the Qlib factor loop; only the configuration (and
-therefore the scenario / data / LLM backend) is GF-specific.
-"""
+from __future__ import annotations
 
 import asyncio
 from pathlib import Path
 from typing import Any, Optional
 
-import fire
 import typer
+from dotenv import load_dotenv
 from typing_extensions import Annotated
 
+# Load the repository .env before importing module-level Pydantic settings.
+load_dotenv()
+
 from rdagent.app.gf_rd_loop.conf import GF_FACTOR_PROP_SETTING, configure_gf_llm_backend
-from rdagent.app.qlib_rd_loop.factor import FactorRDLoop
+from rdagent.components.workflow.rd_loop import RDLoop
 from rdagent.core.exception import FactorEmptyError
 from rdagent.log import rdagent_logger as logger
-from rdagent.scenarios.gf_quant.data.loader import ensure_gf_data
 
 
-class GFFactorRDLoop(FactorRDLoop):
-    """GF factor R&D loop (reuses the whole Qlib factor loop)."""
+class GFFactorRDLoop(RDLoop):
+    """RD-Agent loop whose development stage executes the remote GF DSL."""
 
     skip_loop_error = (FactorEmptyError,)
+
+    def running(self, prev_out: dict[str, Any]):
+        exp = self.runner.develop(prev_out["coding"])
+        if exp is None:
+            raise FactorEmptyError("Remote GF factor evaluation returned no experiment")
+        logger.log_object(exp, tag="runner result")
+        return exp
 
 
 def main(
@@ -34,25 +40,11 @@ def main(
     checkout: Annotated[bool, typer.Option("--checkout/--no-checkout", "-c/-C")] = True,
     checkout_path: Optional[str] = None,
 ):
-    """
-    Auto R&D Evolving loop for GF Securities factors.
-
-    You can continue running session by
-
-    .. code-block:: python
-
-        dotenv run -- python rdagent/app/gf_rd_loop/factor.py $LOG_PATH/__session__/1/0_propose  --step_n 1   # `step_n` is a optional paramter
-
-    """
-    # 1) Wire the GF LLM backend (DeepSeek via LiteLLM)
+    """Run the iterative GF factor research loop with remote evaluation."""
     configure_gf_llm_backend()
 
-    # 2) Fail fast with a descriptive message when the GF factor data is missing
-    ensure_gf_data(raise_on_missing=True)
-
-    if not checkout_path is None:
+    if checkout_path is not None:
         checkout = Path(checkout_path)
-
     if path is None:
         loop = GFFactorRDLoop(GF_FACTOR_PROP_SETTING)
     else:
@@ -61,4 +53,4 @@ def main(
 
 
 if __name__ == "__main__":
-    fire.Fire(main)
+    typer.run(main)

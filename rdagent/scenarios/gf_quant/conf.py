@@ -5,6 +5,8 @@ All settings live under the ``GF_`` environment prefix so the extension never
 collides with the Qlib factor/model scenario variables.
 """
 
+from typing import Literal
+
 from pydantic_settings import SettingsConfigDict
 
 from rdagent.core.conf import ExtendedBaseSettings
@@ -117,6 +119,33 @@ class GFScenarioSettings(ExtendedBaseSettings):
 
     data_password_env: str = "SSH_CODE"
     """Name of the environment variable holding the SSH password."""
+
+    data_host_key_sha256: str = "SHA256:6MqioxKcyZXMd1dx+t+DJOgSWXIqJUtb0j4Zaay/3x0"
+    """Pinned SHA-256 host-key fingerprint for the remote evaluation server."""
+
+    remote_python: str = "G:/.venv/Scripts/python.exe"
+    """Python executable used by the remote evaluator."""
+
+    remote_work_dir: str = "G:/gf_quant_agent"
+    """Remote directory used for evaluator source, requests, and results."""
+
+    remote_artifact_dir: str = "G:/gf_quant_agent/artifacts"
+    """Remote directory where accepted candidate panels are written."""
+
+    local_artifact_dir: str = "artifacts/live"
+    """Local artifact directory, used only with ``GF_FACTOR_EVALUATION_MODE=local``."""
+
+    factor_evaluation_mode: Literal["remote", "local"] = "remote"
+    """Evaluation backend. Remote is the production default; local is explicit development mode."""
+
+    evaluation_start: str = "2022-01-01"
+    evaluation_end: str = "2023-12-31"
+    evaluation_lookback_days: int = 1200
+    evaluation_close_field: str = "adjclose"
+    evaluation_label_horizon: int = 5
+    evaluation_quantile: float = 0.2
+    evaluation_min_cross_section: int = 100
+    evaluation_sample_step: int = 5
 
     registry_path: str = "git_ignore_folder/gf_quant/factor_registry.sqlite"
     """Local SQLite metadata registry. Factor arrays stay in remote artifacts."""

@@ -1,225 +1,74 @@
-gf_quant_background: |-
-  Quantitative investment is a data-driven approach to asset management that relies on mathematical models, statistical techniques, and computational methods to analyze financial markets and make investment decisions. Two essential components of this approach are factors and models.
-
-  You are one of the most authoritative quantitative researchers at a top-tier securities firm (GF Securities). I need your expertise to develop new factors and models that can enhance our investment returns in the Chinese A-share market. Based on the given context, I will ask for your assistance in designing and implementing either factors or a model.
-
-  {% if runtime_environment is not none %}
-  ====== Runtime Environment ======
-  You have following environment to run the code:
-  {{ runtime_environment }}
-  {% endif %}
-
 gf_factor_background: |-
-  The factor is a characteristic or variable used in quant investment that can help explain the returns and risks of a portfolio or a single asset. Factors are used by investors to identify and exploit sources of excess returns, and they are central to many quantitative investment strategies.
-  Each number in the factor represents a physics value to an instrument (a Chinese A-share) on a day.
-  User will train a model to predict the next several days return based on the factor values of the previous days.
-  The factor is defined in the following parts:
-  1. Name: The name of the factor.
-  2. Description: The description of the factor.
-  3. Formulation: The formulation of the factor.
-  4. Variables: The variables or functions used in the formulation of the factor.
-  The factor might not provide all the parts of the information above since some might not be applicable.
-  Please specifically give all the hyperparameter in the factors like the window size, look back period, and so on. One factor should statically defines one output with a static source data. For example, last 10 days momentum and last 20 days momentum should be two different factors.
-
-  The source data comes from GF Securities and only contains adjusted daily price and volume records of Chinese A-shares ($open, $close, $high, $low, $volume, $factor). Rely on this data for all calculations; do not assume additional fundamental or industry data exists unless it can be derived from the provided columns.
+  Research causal Chinese A-share factors on GF Securities data. Every proposed
+  factor must be one executable expression in the safe GF DSL. Do not produce
+  Python, LaTeX, Qlib syntax, file I/O, imports, or arbitrary function calls.
+  Use explicit numeric windows. Financial fields are point-in-time and become
+  available on announcement date ``dt``, never accounting period ``report``.
 
   {% if runtime_environment is not none %}
   ====== Runtime Environment ======
-  You have following environment to run the code:
   {{ runtime_environment }}
   {% endif %}
+
+gf_factor_source_data: |-
+  Remote root: G:/base.
+  Direct fields: adjclose, adjopen, adjhigh, adjlow, amount, volume, turnover,
+  mv, fmv, pb, pe, ps, close, open, high, low, yclose, floatshare, totalshare.
+  Point-in-time financial fields use ``table__factor`` names, for example
+  balance__parent_equity, balance__total_assets, income__net_profit, and
+  cashflow__net_oper_cash_flow. Available tables are balance, income, cashflow.
+  Safe functions: cs_rank(x), delay(x,n), delta(x,n), pct_change(x,n),
+  signed_log(x), ts_mean(x,n), ts_std(x,n), winsorize(x,p), plus numeric
+  arithmetic +, -, *, /, ** and parentheses.
+
+gf_factor_hypothesis_specification: |-
+  1. Propose 1-3 simple, causal, testable factors per round.
+  2. Use only fields and functions listed in the GF scenario.
+  3. Start with robust price-volume or point-in-time fundamental hypotheses;
+     use prior remote metrics to change direction or refine windows.
+  4. Never propose Python code, LaTeX-only formulas, models, or unavailable data.
+
+gf_factor_experiment_output_format: |-
+  Return one JSON object and no surrounding text:
+  {
+    "factor_name": {
+      "description": "[Factor type] concise economic rationale",
+      "family": "price_volume or fundamental",
+      "formulation": "one executable GF DSL expression, for example -pct_change(adjclose, 20)",
+      "variables": {"adjclose": "adjusted close", "pct_change": "lagged percentage change"}
+    }
+  }
+  Generate 1-3 distinct factors. The formulation value must be DSL, not LaTeX.
 
 gf_factor_interface: |-
-  Your python code should follow the interface to better interact with the user's system.
-  Your python code should contain the following part: the import part, the function part, and the main part. You should write a main function name: "calculate_{function_name}" and call this function in "if __name__ == __main__" part. Don't write any try-except block in your python code. The user will catch the exception message and provide the feedback to you.
-  User will write your python code into a python file and execute the file directly with "python {your_file_name}.py". You should calculate the factor values and save the result into a HDF5(H5) file named "result.h5" in the same directory as your python file. The result file is a HDF5(H5) file containing a pandas dataframe. The index of the dataframe is the "datetime" and "instrument", and the single column name is the factor name,and the value is the factor value. The result file should be saved in the same directory as your python file.
+  The implementation is the ``formulation`` string itself. It must parse as the
+  safe GF DSL and reference at least one supported data field. The local coder
+  validates this expression and sends it as data to the remote worker. No source
+  code or local implementation workspace is generated.
 
 gf_factor_strategy: |-
-  Ensure that for every step of data processing, the data format (including indexes) is clearly explained through comments.
-  Each transformation or calculation should be accompanied by a detailed description of how the data is structured, especially focusing on key aspects like whether the data has multi-level indexing, how to access specific columns or index levels, and any operations that affect the data shape (e.g., `reset_index()`, `groupby()`, `merge()`).
-  This step-by-step explanation will ensure clarity and accuracy in data handling. For example:
-  1. **Start with multi-level index**:
-    ```python
-    # The initial DataFrame has a multi-level index with 'datetime' and 'instrument'.
-    # To access the 'datetime' index, use df.index.get_level_values('datetime').
-    datetime_values = df.index.get_level_values('datetime')
-    ```
-
-  2. **Reset the index if necessary**:
-    ```python
-    # Resetting the index to move 'datetime' and 'instrument' from the index to columns.
-    # This operation flattens the multi-index structure.
-    df = df.reset_index()
-    ```
-
-  3. **Perform groupby operations**:
-    ```python
-    # Grouping by 'datetime' and 'instrument' to aggregate the data.
-    # After groupby, the result will maintain 'datetime' and 'instrument' as a multi-level index.
-    df_grouped = df.groupby(['datetime', 'instrument']).sum()
-    ```
-
-  4. **Ensure consistent datetime formats**:
-    ```python
-    # Before merging, ensure that the 'datetime' column in both DataFrames is of the same format.
-    # Convert to datetime format if necessary.
-    df['datetime'] = pd.to_datetime(df['datetime'])
-    other_df['datetime'] = pd.to_datetime(other_df['datetime'])
-    ```
-
-  5. **Merge operations**:
-    ```python
-    # When merging DataFrames, ensure you are merging on both 'datetime' and 'instrument'.
-    # If these are part of the index, reset the index before merging.
-    merged_df = pd.merge(df, other_df, on=['datetime', 'instrument'], how='inner')
-    ```
+  Prefer interpretable expressions with modest lookbacks. Avoid division by an
+  unstable raw denominator; stabilize or rank when appropriate. Use announcement
+  dates for financial data and never introduce a forward-looking transformation.
 
 gf_factor_output_format: |-
-  Your output should be a pandas dataframe similar to the following example information:
-  <class 'pandas.core.frame.DataFrame'>
-  MultiIndex: 40914 entries, (Timestamp('2020-01-02 00:00:00'), 'SH600000') to (Timestamp('2021-12-31 00:00:00'), 'SZ300059')
-  Data columns (total 1 columns):
-  #   Column            Non-Null Count  Dtype
-  ---  ------            --------------  -----
-  0   your factor name  40914 non-null  float64
-  dtypes: float64(1)
-  memory usage: <ignore>
-  Notice: The non-null count is OK to be different to the total number of entries since some instruments may not have the factor value on some days.
-  One possible format of `result.h5` may be like following:
-  datetime    instrument
-  2020-01-02  SZ000001     -0.001796
-              SZ000166      0.005780
-              SZ000686      0.004228
-              SZ000712      0.001298
-              SZ000728      0.005330
-                              ...
-  2021-12-31  SZ000750      0.000000
-              SZ000776      0.002459
+  The remote evaluator returns JSON metrics including IC, ICIR, Rank_IC,
+  Rank_ICIR, annualized_return, sharpe, max_drawdown, turnover, coverage,
+  win_rate, observations, and stability_by_year, plus a Parquet artifact path
+  and checksum. The RDLoop stores these metrics in the experiment trace.
 
 gf_factor_simulator: |-
-  The factors will be sent into Qlib to train a model to predict the next several days return based on the factor values of the previous days.
-  Qlib is an AI-oriented quantitative investment platform that aims to realize the potential, empower research, and create value using AI technologies in quantitative investment, from exploring ideas to implementing productions. Qlib supports diverse machine learning modeling paradigms. including supervised learning, market dynamics modeling, and RL.
-  User will use Qlib to automatically do the following things:
-  1. generate a new factor table based on the factor values.
-  2. train a model like LightGBM, CatBoost, LSTM or simple PyTorch model to predict the next several days return based on the factor values.
-  3. build a portfolio based on the predicted return based on a strategy.
-  4. evaluate the portfolio's performance including the return, sharpe ratio, max drawdown, and so on.
+  The safe expression is evaluated remotely on 2022-01-01 through 2023-12-31
+  screening data. RankIC uses five-day forward returns sampled every five days.
+  Long-short returns use a one-day signal lag. Factor artifacts stay on the data
+  host; metadata, metrics, acceptance status, and checksums are registered locally.
 
-gf_factor_rich_style_description : |-
-  ### R&D Agent-GF: Automated Factor Evolution on GF Securities A-share Data
-
-  #### [Overview](#_summary)
-
-  The demo showcases the iterative process of hypothesis generation, knowledge construction, and decision-making for factor research on GF Securities' Chinese A-share data. It highlights how financial factors evolve through continuous feedback and refinement.
-
-  #### [Automated R&D](#_rdloops)
-
-  - **[R (Research)](#_research)**
-    - Iterative development of ideas and hypotheses grounded in GF A-share market data.
-    - Continuous learning and knowledge construction.
-
-  - **[D (Development)](#_development)**
-    - Progressive implementation and code generation of factors.
-    - Automated testing and validation of financial factors on the GF data stack.
-
-  #### [Objective](#_summary)
-
-  To demonstrate the dynamic evolution of financial factors on GF Securities data, emphasizing how each iteration enhances the accuracy and reliability of the resulting financial factors.
+gf_factor_rich_style_description: |-
+  ### R&D Agent-GF: Remote DSL Factor Evolution
+  DeepSeek proposes causal GF DSL expressions; the pinned remote worker evaluates
+  them on A-share data; expanded metrics and feedback guide the next RDLoop round.
 
 gf_factor_experiment_setting: |-
-  | Dataset 📊 | Model 🤖    | Factors 🌟       | Data Split  🧮                                   |
-  |---------|----------|---------------|-------------------------------------------------|
-  | GF A-share data (Chinese A-shares) | LGBModel | Generated factors | Chronological train/valid/test boundaries are built from available trading dates; see `gf_quant.split` and the run manifest. |
-
-gf_model_background: |-
-  The model is a machine learning or deep learning structure used in quantitative investment to predict the returns and risks of a portfolio or a single asset. Models are employed by investors to generate forecasts based on historical data and identified factors, which are central to many quantitative investment strategies.
-  Each model takes the factors as input and predicts the future returns. Usually, the bigger the model is, the better the performance would be.
-  The model is defined in the following parts:
-  1. Name: The name of the model.
-  2. Description: The description of the model.
-  3. Architecture: The detailed architecture of the model, such as neural network layers or tree structures.
-  4. Hyperparameters: The hyperparameters used in the model.
-  5. Training_hyperparameters: The hyperparameters used during the training process.
-  6. ModelType: The type of the model, "Tabular" for tabular model and "TimeSeries" for time series model.
-  The model should provide clear and detailed documentation of its architecture and hyperparameters. One model should statically define one output with a fixed architecture and hyperparameters.
-
-  {% if runtime_environment is not none %}
-  ====== Runtime Environment ======
-  You have following environment to run the code:
-  {{ runtime_environment }}
-  {% endif %}
-
-gf_model_interface: |-
-  Your python code should follow the interface to better interact with the user's system.
-  You code should contain several parts:
-  1. The import part: import the necessary libraries.
-  2. A class which is a sub-class of pytorch.nn.Module. This class should should have a init function and a forward function which inputs a tensor and outputs a tensor.
-  3. Set a variable called "model_cls" to the class you defined.
-
-  The user will save your code into a python file called "model.py". Then the user imports model_cls in file "model.py" after setting the cwd into the directory:
-  ```python
-  from model import model_cls
-  ```
-  So your python code should follow the pattern:
-  ```python
-  class XXXModel(torch.nn.Module):
-      ...
-  model_cls = XXXModel
-  ```
-
-  The model can be configured as either "Tabular" for tabular models or "TimeSeries" for time series models. For a tabular model, the input shape is (batch_size, num_features), while for a time series model, the input shape is (batch_size, num_timesteps, num_features). In both cases, the output shape of the model should be (batch_size, 1).
-  `num_features` will be directly set for the model based on the input data shape.
-  User will initialize the tabular model with the following code:
-  ```python
-  model = model_cls(num_features=num_features)
-  ```
-  User will initialize the time series model with the following code:
-  ```python
-  model = model_cls(num_features=num_features, num_timesteps=num_timesteps)
-  ```
-  No other parameters will be passed to the model so give other parameters a default value or just make them static.
-
-  Don't write any try-except block in your python code. The user will catch the exception message and provide the feedback to you. Also, don't write main function in your python code. The user will call the forward method in the model_cls to get the output tensor.
-
-  Please notice that your model should only use current features as input. The user will provide the input tensor to the model's forward function.
-
-gf_model_output_format: |-
-  Your output should be a tensor with shape (batch_size, 1).
-  The output tensor should be saved in a file named "output.pth" in the same directory as your python file.
-  The user will evaluate the shape of the output tensor so the tensor read from "output.pth" should be 8 numbers.
-
-gf_model_simulator: |-
-  The models will be sent into Qlib to train and evaluate their performance in predicting future returns. Hypothesis is improved upon checking the feedback on the results.
-  Qlib is an AI-oriented quantitative investment platform that aims to realize the potential, empower research, and create value using AI technologies in quantitative investment, from exploring ideas to implementing productions. Qlib supports diverse machine learning modeling paradigms, including supervised learning, market dynamics modeling, and reinforcement learning (RL).
-  User will use Qlib to automatically perform the following tasks:
-  1. Generate a baseline factor table.
-  2. Train the model defined in your class Net to predict the next several days' returns based on the factor values.
-  3. Build a portfolio based on the predicted returns using a specific strategy.
-  4. Evaluate the portfolio's performance, including metrics such as return, IC, max drawdown, and others.
-  5. Iterate on growing the hypothesis to enable model improvements based on performance evaluations and feedback.
-
-gf_model_rich_style_description: |-
-  ### R&D Agent-GF: Model Evolution on GF Securities A-share Data
-
-  #### [Overview](#_summary)
-
-  The demo showcases the iterative process of hypothesis generation, knowledge construction, and decision-making in model construction in quantitative finance, applied to GF Securities' Chinese A-share data. It highlights how models evolve through continuous feedback and refinement.
-
-  #### [Automated R&D](#_rdloops)
-
-  - **[R (Research)](#_research)**
-    - Iteration of ideas and hypotheses grounded in GF A-share market data.
-    - Continuous learning and knowledge construction.
-
-  - **[D (Development)](#_development)**
-    - Evolving code generation and model refinement.
-    - Automated implementation and testing of models.
-
-  #### [Objective](#_summary)
-
-  To demonstrate the dynamic evolution of models on GF Securities data, emphasizing how each iteration enhances the accuracy and reliability of the resulting models.
-
-gf_model_experiment_setting: |-
-  | Dataset 📊 | Model 🤖    | Factors 🌟       | Data Split  🧮                                   |
-  |---------|----------|---------------|-------------------------------------------------|
-  | GF A-share data (Chinese A-shares) | GeneralPTNN | Generated factors | Chronological train/valid/test boundaries are built from available trading dates; see `gf_quant.split` and the run manifest. |
+  | Dataset | Expression runtime | Screening split | Feedback |
+  |---|---|---|---|
+  | GF A-share G:/base | Safe remote DSL worker | 2022-2023 | IC, RankIC, return, risk, turnover, coverage, stability |

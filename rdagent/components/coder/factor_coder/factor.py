@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 import subprocess
-import uuid
 from pathlib import Path
 from typing import Tuple, Union
 
 import pandas as pd
 from filelock import FileLock
 
-from rdagent.app.kaggle.conf import KAGGLE_IMPLEMENT_SETTING
 from rdagent.components.coder.CoSTEER.task import CoSTEERTask
 from rdagent.components.coder.factor_coder.config import FACTOR_COSTEER_SETTINGS
 from rdagent.core.exception import CodeFormatError, CustomRuntimeError, NoOutputError
@@ -130,19 +128,13 @@ class FactorFBWorkspace(FBWorkspace):
             else:
                 return self.FB_CODE_NOT_SET, None
         with FileLock(self.workspace_path / "execution.lock"):
-            if self.target_task.version == 1:
-                source_data_path = (
-                    Path(
-                        FACTOR_COSTEER_SETTINGS.data_folder_debug,
-                    )
-                    if data_type == "Debug"  # FIXME: (yx) don't think we should use a debug tag for this.
-                    else Path(
-                        FACTOR_COSTEER_SETTINGS.data_folder,
-                    )
-                )
-            elif self.target_task.version == 2:
-                # TODO you can change the name of the data folder for a better understanding
-                source_data_path = Path(KAGGLE_IMPLEMENT_SETTING.local_data_path) / KAGGLE_IMPLEMENT_SETTING.competition
+            if self.target_task.version != 1:
+                raise ValueError("The GF factor agent only supports factor task version 1.")
+            source_data_path = (
+                Path(FACTOR_COSTEER_SETTINGS.data_folder_debug)
+                if data_type == "Debug"
+                else Path(FACTOR_COSTEER_SETTINGS.data_folder)
+            )
 
             source_data_path.mkdir(exist_ok=True, parents=True)
             code_path = self.workspace_path / f"factor.py"
@@ -153,11 +145,7 @@ class FactorFBWorkspace(FBWorkspace):
             execution_success = False
             execution_error = None
 
-            if self.target_task.version == 1:
-                execution_code_path = code_path
-            elif self.target_task.version == 2:
-                execution_code_path = self.workspace_path / f"{uuid.uuid4()}.py"
-                execution_code_path.write_text((Path(__file__).parent / "factor_execution_template.txt").read_text())
+            execution_code_path = code_path
 
             try:
                 subprocess.check_output(

@@ -1,25 +1,15 @@
 """
 GF (GuangFa Securities) factor scenario.
 
-Extends the Qlib factor scenario by
-
-* pointing the factor-coder data folders at the GF data folder (and building it
-  from the GF source when needed),
-* using GF-tailored prompt templates,
-* describing the GF A-share source data.
-
-The rest of the factor stack (proposal, CoSTEER coding, runner, feedback) is
-inherited unchanged from the Qlib scenario.
+The proposal is expressed in a small safe DSL and evaluated beside the remote
+``G:/base`` Parquet store.  No local HDF5 materialization or CoSTEER execution
+is part of the production loop.
 """
 
 from copy import deepcopy
 
-from rdagent.components.coder.factor_coder.config import get_factor_env
 from rdagent.core.experiment import Task
-from rdagent.scenarios.gf_quant.data.loader import ensure_gf_data
 from rdagent.scenarios.qlib.experiment.factor_experiment import QlibFactorScenario
-from rdagent.scenarios.qlib.experiment.utils import get_data_folder_intro
-from rdagent.scenarios.shared.get_runtime_info import get_runtime_environment_by_env
 from rdagent.utils.agent.tpl import T
 
 
@@ -34,13 +24,10 @@ class GFFactorScenario(QlibFactorScenario):
     """
 
     def __init__(self) -> None:
-        # Make the GF data folders available to the whole factor stack
-        ensure_gf_data(raise_on_missing=False)
-
         self._background = deepcopy(
             T(".prompts:gf_factor_background").r(runtime_environment=self.get_runtime_environment())
         )
-        self._source_data = deepcopy(get_data_folder_intro())
+        self._source_data = deepcopy(T(".prompts:gf_factor_source_data").r())
         self._output_format = deepcopy(T(".prompts:gf_factor_output_format").r())
         self._interface = deepcopy(T(".prompts:gf_factor_interface").r())
         self._strategy = deepcopy(T(".prompts:gf_factor_strategy").r())
@@ -52,10 +39,7 @@ class GFFactorScenario(QlibFactorScenario):
         return self._source_data
 
     def get_runtime_environment(self):
-        # Detection requires a working local conda env; degrade gracefully when
-        # the runtime is not provisioned (e.g. Windows dev box).
-        try:
-            factor_env = get_factor_env()
-            return get_runtime_environment_by_env(env=factor_env)
-        except Exception as e:  # noqa: BLE001 - runtime detection is best-effort
-            return f"(Runtime environment detection failed, continuing without it: {e})"
+        return (
+            "Factor expressions run on the pinned GF Windows data host using "
+            "G:/.venv/Scripts/python.exe and the safe GF DSL worker."
+        )

@@ -1,25 +1,16 @@
-"""
-GF (GuangFa Securities) loop configuration.
-
-The GF factor / quant loops are the Qlib factor / quant loops pointed at the GF
-scenario classes. Settings use the ``GF_FACTOR_`` / ``GF_QUANT_`` environment
-prefixes (with the Qlib prefixes kept as fallbacks via inheritance).
-"""
+"""GF factor-loop configuration."""
 
 import os
 
 from pydantic_settings import SettingsConfigDict
 
-from rdagent.app.qlib_rd_loop.conf import (
-    FactorBasePropSetting,
-    QuantBasePropSetting,
-)
+from rdagent.components.workflow.conf import BasePropSetting
 
 GF_LLM_BACKEND = "rdagent.oai.backend.LiteLLMAPIBackend"
 GF_LLM_CHAT_MODEL = "deepseek/deepseek-v4-flash"
 
 
-class GFFactorPropSetting(FactorBasePropSetting):
+class GFFactorPropSetting(BasePropSetting):
     model_config = SettingsConfigDict(env_prefix="GF_FACTOR_", protected_namespaces=())
 
     # 1) override base settings for the GF scenario
@@ -32,55 +23,17 @@ class GFFactorPropSetting(FactorBasePropSetting):
     hypothesis2experiment: str = "rdagent.scenarios.gf_quant.proposal.GFFactorHypothesis2Experiment"
     """Hypothesis to experiment class"""
 
-    coder: str = "rdagent.scenarios.qlib.developer.factor_coder.QlibFactorCoSTEER"
-    """Coder class (reused from Qlib)"""
+    coder: str = "rdagent.scenarios.gf_quant.developer.coder.GFFactorCoder"
+    """Lightweight coder that validates the remote GF factor DSL"""
 
     runner: str = "rdagent.scenarios.gf_quant.developer.factor_runner.GFFactorRunner"
-    """Runner class (reused from Qlib)"""
+    """Remote SSH runner for GF factor expressions"""
 
     summarizer: str = "rdagent.scenarios.gf_quant.developer.feedback.GFFactorExperiment2Feedback"
     """Summarizer class (reused from Qlib)"""
 
 
-class GFQuantPropSetting(QuantBasePropSetting):
-    model_config = SettingsConfigDict(env_prefix="GF_QUANT_", protected_namespaces=())
-
-    # 1) override base settings for the GF scenario
-    scen: str = "rdagent.scenarios.gf_quant.experiment.gf_quant_experiment.GFQuantScenario"
-    """Scenario class for GF Quant"""
-
-    quant_hypothesis_gen: str = "rdagent.scenarios.qlib.proposal.quant_proposal.QlibQuantHypothesisGen"
-    """Hypothesis generation class (reused from Qlib)"""
-
-    model_hypothesis2experiment: str = (
-        "rdagent.scenarios.qlib.proposal.model_proposal.QlibModelHypothesis2Experiment"
-    )
-    """Hypothesis to experiment class for models (reused from Qlib)"""
-
-    model_coder: str = "rdagent.scenarios.qlib.developer.model_coder.QlibModelCoSTEER"
-    """Coder class for models (reused from Qlib)"""
-
-    model_runner: str = "rdagent.scenarios.qlib.developer.model_runner.QlibModelRunner"
-    """Runner class for models (reused from Qlib)"""
-
-    model_summarizer: str = "rdagent.scenarios.qlib.developer.feedback.QlibModelExperiment2Feedback"
-    """Summarizer class for models (reused from Qlib)"""
-
-    factor_hypothesis2experiment: str = "rdagent.scenarios.gf_quant.proposal.GFFactorHypothesis2Experiment"
-    """Hypothesis to experiment class for factors"""
-
-    factor_coder: str = "rdagent.scenarios.qlib.developer.factor_coder.QlibFactorCoSTEER"
-    """Coder class for factors (reused from Qlib)"""
-
-    factor_runner: str = "rdagent.scenarios.gf_quant.developer.factor_runner.GFFactorRunner"
-    """Runner class for factors (reused from Qlib)"""
-
-    factor_summarizer: str = "rdagent.scenarios.gf_quant.developer.feedback.GFFactorExperiment2Feedback"
-    """Summarizer class for factors (reused from Qlib)"""
-
-
 GF_FACTOR_PROP_SETTING = GFFactorPropSetting()
-GF_QUANT_PROP_SETTING = GFQuantPropSetting()
 
 
 def configure_gf_llm_backend() -> None:

@@ -1,7 +1,5 @@
-from copy import deepcopy
 from pathlib import Path
 
-from rdagent.components.coder.factor_coder.config import get_factor_env
 from rdagent.components.coder.factor_coder.factor import (
     FactorExperiment,
     FactorFBWorkspace,
@@ -9,10 +7,7 @@ from rdagent.components.coder.factor_coder.factor import (
 )
 from rdagent.core.experiment import Task
 from rdagent.core.scenario import Scenario
-from rdagent.scenarios.qlib.experiment.utils import get_data_folder_intro
 from rdagent.scenarios.qlib.experiment.workspace import QlibFBWorkspace
-from rdagent.scenarios.shared.get_runtime_info import get_runtime_environment_by_env
-from rdagent.utils.agent.tpl import T
 
 
 class QlibFactorExperiment(FactorExperiment[FactorTask, QlibFBWorkspace, FactorFBWorkspace]):
@@ -23,21 +18,6 @@ class QlibFactorExperiment(FactorExperiment[FactorTask, QlibFBWorkspace, FactorF
 
 
 class QlibFactorScenario(Scenario):
-    def __init__(self) -> None:
-        super().__init__()
-        self._background = deepcopy(
-            T(".prompts:qlib_factor_background").r(
-                runtime_environment=self.get_runtime_environment(),
-            )
-        )
-        self._source_data = deepcopy(get_data_folder_intro())
-        self._output_format = deepcopy(T(".prompts:qlib_factor_output_format").r())
-        self._interface = deepcopy(T(".prompts:qlib_factor_interface").r())
-        self._strategy = deepcopy(T(".prompts:qlib_factor_strategy").r())
-        self._simulator = deepcopy(T(".prompts:qlib_factor_simulator").r())
-        self._rich_style_description = deepcopy(T(".prompts:qlib_factor_rich_style_description").r())
-        self._experiment_setting = deepcopy(T(".prompts:qlib_factor_experiment_setting").r())
-
     @property
     def background(self) -> str:
         return self._background
@@ -83,8 +63,3 @@ The output of your code should be in the format:
 The simulator user can use to test your factor:
 {self.simulator}
 """
-
-    def get_runtime_environment(self):
-        factor_env = get_factor_env()
-        stdout = get_runtime_environment_by_env(env=factor_env)
-        return stdout

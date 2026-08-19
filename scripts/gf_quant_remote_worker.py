@@ -255,7 +255,10 @@ def evaluate_factor(factor: pd.DataFrame, close: pd.DataFrame, cfg: EvaluationCo
     common_columns = factor.columns.intersection(close.columns)
     factor = factor.loc[:, common_columns]
     close = close.reindex(index=factor.index, columns=common_columns)
-    coverage = factor.notna().sum(axis=1) / close.notna().sum(axis=1).replace(0, np.nan)
+    # Coverage is measured only where the forward-return source (close) exists.
+    # A factor can have stale/alternate-field values on rows whose close is
+    # missing, so counting factor non-nulls alone can incorrectly exceed 100%.
+    coverage = (factor.notna() & close.notna()).sum(axis=1) / close.notna().sum(axis=1).replace(0, np.nan)
     forward = close.shift(-cfg.label_horizon) / close - 1.0
     sampled_factor = factor.iloc[:: cfg.sample_step]
     sampled_label = forward.reindex(sampled_factor.index)

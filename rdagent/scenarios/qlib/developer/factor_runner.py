@@ -3,7 +3,6 @@ from pathlib import Path
 import pandas as pd
 from pandarallel import pandarallel
 
-from rdagent.core.conf import RD_AGENT_SETTINGS
 from rdagent.core.utils import cache_with_pickle
 
 pandarallel.initialize(verbose=1)
@@ -13,7 +12,6 @@ from rdagent.core.exception import FactorEmptyError
 from rdagent.log import rdagent_logger as logger
 from rdagent.scenarios.qlib.developer.utils import process_factor_data
 from rdagent.scenarios.qlib.experiment.factor_experiment import QlibFactorExperiment
-from rdagent.scenarios.qlib.experiment.model_experiment import QlibModelExperiment
 
 DIRNAME = Path(__file__).absolute().resolve().parent
 DIRNAME_local = Path.cwd()
@@ -113,7 +111,6 @@ class QlibFactorRunner(CachedRunner[QlibFactorExperiment]):
             combined_factors = combined_factors.loc[:, ~combined_factors.columns.duplicated(keep="last")]
             new_columns = pd.MultiIndex.from_product([["feature"], combined_factors.columns])
             combined_factors.columns = new_columns
-            num_features = RD_AGENT_SETTINGS.initial_fator_library_size + len(combined_factors.columns)
             logger.info(f"Factor data processing completed.")
 
             # Due to the rdagent and qlib docker image in the numpy version of the difference,
@@ -124,49 +121,8 @@ class QlibFactorRunner(CachedRunner[QlibFactorExperiment]):
             # Save the combined factors to the workspace
             combined_factors.to_parquet(target_path, engine="pyarrow")
 
-            # If model exp exists in the previous experiment
-            exist_sota_model_exp = False
-            for base_exp in reversed(exp.based_experiments):
-                if isinstance(base_exp, QlibModelExperiment):
-                    sota_model_exp = base_exp
-                    exist_sota_model_exp = True
-                    break
             logger.info(f"Experiment execution ...")
-            if exist_sota_model_exp:
-                exp.experiment_workspace.inject_files(
-                    **{"model.py": sota_model_exp.sub_workspace_list[0].file_dict["model.py"]}
-                )
-                env_to_use = {"PYTHONPATH": "./"}
-                sota_training_hyperparameters = sota_model_exp.sub_tasks[0].training_hyperparameters
-                if sota_training_hyperparameters:
-                    env_to_use.update(
-                        {
-                            "n_epochs": str(sota_training_hyperparameters.get("n_epochs", "100")),
-                            "lr": str(sota_training_hyperparameters.get("lr", "2e-4")),
-                            "early_stop": str(sota_training_hyperparameters.get("early_stop", 10)),
-                            "batch_size": str(sota_training_hyperparameters.get("batch_size", 256)),
-                            "weight_decay": str(sota_training_hyperparameters.get("weight_decay", 0.0001)),
-                        }
-                    )
-                sota_model_type = sota_model_exp.sub_tasks[0].model_type
-                if sota_model_type == "TimeSeries":
-                    env_to_use.update(
-                        {"dataset_cls": "TSDatasetH", "num_features": num_features, "step_len": 20, "num_timesteps": 20}
-                    )
-                elif sota_model_type == "Tabular":
-                    env_to_use.update({"dataset_cls": "DatasetH", "num_features": num_features})
-
-                # model + combined factors
-                result, stdout = exp.experiment_workspace.execute(
-                    qlib_config_name="conf_combined_factors_sota_model.yaml", run_env=env_to_use
-                )
-            else:
-                # LGBM + combined factors
-                result, stdout = exp.experiment_workspace.execute(
-                    qlib_config_name=(
-                        f"conf_baseline.yaml" if len(exp.based_experiments) == 0 else "conf_combined_factors.yaml"
-                    )
-                )
+            result, stdout = exp.experiment_workspace.execute(qlib_config_name="conf_combined_factors.yaml")
         else:
             logger.info(f"Experiment execution ...")
             result, stdout = exp.experiment_workspace.execute(
