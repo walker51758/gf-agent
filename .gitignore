@@ -1,6 +1,7 @@
 # Secrets
 .env
 !.env.example
+.gitignore
 
 # Python
 __pycache__/
@@ -32,3 +33,6 @@ prompt_cache.db
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Documentation
+广发因子智能体-产品视角业务说明.html

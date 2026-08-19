@@ -75,6 +75,10 @@ def test_remote_runner_writes_trace_metrics_and_registry(tmp_path: Path) -> None
         )
 
     exp = _experiment(_task())
+    exp.search_mode = "explore"
+    exp.search_direction = "reversal"
+    exp.sub_tasks[0].search_mode = "explore"
+    exp.sub_tasks[0].search_direction = "reversal"
     GFFactorCoder(SimpleNamespace()).develop(exp)
     registry = FactorRegistry(tmp_path / "factor_registry.sqlite")
     result = GFFactorRunner(SimpleNamespace(), evaluator=evaluator, registry=registry).develop(exp)
@@ -85,7 +89,12 @@ def test_remote_runner_writes_trace_metrics_and_registry(tmp_path: Path) -> None
     assert result.result.loc["1day.excess_return_without_cost.annualized_return"] == pytest.approx(0.12)
     assert result.result.loc["1day.excess_return_without_cost.max_drawdown"] == pytest.approx(-0.10)
     assert result.remote_results[0]["status"] == "accepted"
-    assert registry.get_by_name("reversal_20").artifact_checksum == "abc123"
+    stored = registry.get_by_name("reversal_20")
+    assert stored.artifact_checksum == "abc123"
+    assert stored.metadata["search_mode"] == "explore"
+    assert stored.metadata["search_direction"] == "reversal"
+    assert result.remote_results[0]["search_mode"] == "explore"
+    assert result.remote_results[0]["search_direction"] == "reversal"
 
 
 def test_factor_entrypoint_keeps_loop_n_and_loads_dotenv_first(monkeypatch) -> None:

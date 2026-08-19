@@ -72,12 +72,19 @@ class GFFactorRunner(Developer):
             try:
                 expression = str(task.factor_formulation).strip()
                 fields = tuple(getattr(task, "dsl_fields", ())) or validate_dsl_expression(expression)
+                search_mode = getattr(task, "search_mode", getattr(exp, "search_mode", "legacy"))
+                search_direction = getattr(task, "search_direction", getattr(exp, "search_direction", "other"))
                 candidate = FactorCandidate(
                     name=str(task.factor_name),
                     family=self._family(task, fields),
                     expression=expression,
                     hypothesis=hypothesis,
-                    metadata={"fields": list(fields), "source": "gf_rd_loop"},
+                    metadata={
+                        "fields": list(fields),
+                        "source": "gf_rd_loop",
+                        "search_mode": search_mode,
+                        "search_direction": search_direction,
+                    },
                 )
                 processed = self.service.process(candidate)
                 completed.append((task, processed))
@@ -111,6 +118,8 @@ class GFFactorRunner(Developer):
                 "artifact_path": result.record.artifact_path,
                 "artifact_checksum": result.record.artifact_checksum,
                 "gate_failures": list(result.gate_failures),
+                "search_mode": result.record.metadata.get("search_mode", "legacy"),
+                "search_direction": result.record.metadata.get("search_direction", "other"),
             }
             for _, result in completed
         ]

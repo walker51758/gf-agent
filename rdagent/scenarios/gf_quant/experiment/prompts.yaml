@@ -24,9 +24,26 @@ gf_factor_source_data: |-
 gf_factor_hypothesis_specification: |-
   1. Propose 1-3 simple, causal, testable factors per round.
   2. Use only fields and functions listed in the GF scenario.
-  3. Start with robust price-volume or point-in-time fundamental hypotheses;
-     use prior remote metrics to change direction or refine windows.
+  3. Follow the search-mode instruction exactly. In improvement mode, use prior
+     remote metrics to refine the selected direction. In exploration mode,
+     develop the selected independent direction without extending an earlier
+     hypothesis; the tested-factor archive is supplied only to prevent repeats.
   4. Never propose Python code, LaTeX-only formulas, models, or unavailable data.
+
+gf_factor_search_instruction: |-
+  ====== Search Policy ======
+  Mode: {{ search_mode }}
+  Target research direction: {{ search_direction }}
+  Selection reason: {{ search_reason }}
+  {% if search_mode == "explore" %}
+  This is an independent exploration round. Propose only factors whose primary
+  economic mechanism is {{ search_direction }}. Do not continue, tune, combine
+  with, or take inspiration from the previous round. Any tested-factor archive
+  is metric-free deduplication context, not evidence that a direction worked.
+  {% else %}
+  This is an improvement round. Continue the {{ search_direction }} direction
+  and use the supplied experimental trace to make a focused, testable change.
+  {% endif %}
 
 gf_factor_experiment_output_format: |-
   Return one JSON object and no surrounding text:
@@ -38,7 +55,8 @@ gf_factor_experiment_output_format: |-
       "variables": {"adjclose": "adjusted close", "pct_change": "lagged percentage change"}
     }
   }
-  Generate 1-3 distinct factors. The formulation value must be DSL, not LaTeX.
+  Generate 1-3 distinct factors in the target research direction. The
+  formulation value must be DSL, not LaTeX.
 
 gf_factor_interface: |-
   The implementation is the ``formulation`` string itself. It must parse as the

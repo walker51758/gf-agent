@@ -31,6 +31,13 @@ python -m rdagent.app.gf_rd_loop.factor --loop-n 5
 DSL 因子生成、远端 SSH 评估、SQLite 登记和反馈写入；不要求本机存在
 `daily_pv.h5`、Qlib 或 Docker。
 
+循环默认以 70% 概率继续改进上一研究方向、以 30% 概率独立探索当前测试
+较少的方向。连续六轮属于同一方向，或连续三轮没有刷新最佳结果时，下一轮
+会强制探索。探索轮不会把以往假设、指标和反馈叙事交给 LLM，只提供名称与
+表达式用于防止重复。可在 `.env` 中通过 `GF_FACTOR_EXPLORATION_PROBABILITY`、
+`GF_FACTOR_MAX_SAME_FAMILY_STREAK`、`GF_FACTOR_STAGNATION_PATIENCE` 和可选的
+`GF_FACTOR_SEARCH_RANDOM_SEED` 调整该行为。
+
 执行一个远程候选因子：
 
 ```powershell

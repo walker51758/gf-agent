@@ -2,6 +2,7 @@
 
 import os
 
+from pydantic import Field
 from pydantic_settings import SettingsConfigDict
 
 from rdagent.components.workflow.conf import BasePropSetting
@@ -31,6 +32,18 @@ class GFFactorPropSetting(BasePropSetting):
 
     summarizer: str = "rdagent.scenarios.gf_quant.developer.feedback.GFFactorExperiment2Feedback"
     """Summarizer class (reused from Qlib)"""
+
+    exploration_probability: float = Field(default=0.30, ge=0.0, le=1.0)
+    """Chance that a non-forced round starts an independent research direction."""
+
+    max_same_family_streak: int = Field(default=6, ge=1)
+    """Force exploration after this many rounds in one fine-grained research direction."""
+
+    stagnation_patience: int = Field(default=3, ge=1)
+    """Force exploration after this many consecutive rounds fail to improve SOTA."""
+
+    search_random_seed: int | None = None
+    """Optional reproducible seed for mode selection and least-tested direction ties."""
 
 
 GF_FACTOR_PROP_SETTING = GFFactorPropSetting()
