@@ -282,6 +282,7 @@ def test_elementwise_math_is_total_and_nan_preserving() -> None:
         "cs_scale(abs(income__net_profit))",
         "ts_corr(ts_mean(adjclose, 5), volume, 20)",
         "winsorize(pct_change(adjclose, 5), 0.02)",
+        "ts_std(pct_change(adjclose, 1), 20)",
         "inverse(cs_demean(mv))",
         "log(sqrt(amount)) + sign(volume)",
         "ts_mad(adjclose, 20) + ts_slope(adjclose, 20)",
@@ -306,6 +307,7 @@ def test_valid_new_operator_expressions_are_accepted(expression: str) -> None:
         "ts_mad(adjclose, 2)",  # robust windows need at least three dates
         "ts_zscore(adjclose, adjclose)",  # window must be a literal
         "ts_zscore(adjclose, 0)",  # window must be positive
+        "pct_change(adjclose, 0)",  # lag must be positive, but one day is valid
         "ts_zscore(adjclose, -5)",
         "ts_zscore(adjclose, 5.5)",  # window must be a whole number
         "ts_quantile(adjclose, 20, 0.0)",  # quantile must stay inside (0, 1)

@@ -337,6 +337,8 @@ class GFQuantOrchestrator:
         factor_research_engine: FactorResearchEngine | None = None,
         config: OuterEpochConfig | None = None,
         snapshot_dir: str | Path | None = None,
+        default_evaluation_start: str | None = None,
+        default_evaluation_end: str | None = None,
     ) -> None:
         self.factor_registry = factor_registry
         self.strategy_service = strategy_service
@@ -344,6 +346,10 @@ class GFQuantOrchestrator:
         self.factor_research_engine = factor_research_engine
         self.config = config or OuterEpochConfig()
         self.snapshot_dir = Path(snapshot_dir) if snapshot_dir is not None else None
+        if (default_evaluation_start is None) != (default_evaluation_end is None):
+            raise ValueError("default evaluation window requires both start and end")
+        self.default_evaluation_start = default_evaluation_start
+        self.default_evaluation_end = default_evaluation_end
         # Feedback is intentionally held outside the frozen snapshot.  It is a
         # selection hint for the *next* epoch; the current epoch remains fully
         # reproducible against its already-written snapshot and working set.
@@ -418,6 +424,18 @@ class GFQuantOrchestrator:
         evaluation_start: str | None = None,
         evaluation_end: str | None = None,
     ) -> OuterEpochResult:
+        # Resolve the window once so evaluator, proposer context, and report
+        # always describe the same dates when callers omit optional arguments.
+        effective_evaluation_start = evaluation_start or self.default_evaluation_start
+        effective_evaluation_end = evaluation_end or self.default_evaluation_end
+        if (effective_evaluation_start is None) != (effective_evaluation_end is None):
+            raise ValueError("evaluation window requires both start and end")
+        if (
+            effective_evaluation_start is not None
+            and effective_evaluation_end is not None
+            and effective_evaluation_start > effective_evaluation_end
+        ):
+            raise ValueError("evaluation_start must not be after evaluation_end")
         created_at = datetime.now(timezone.utc).isoformat()
         snapshot = build_factor_universe_snapshot(self.factor_registry, data_cutoff=data_cutoff, created_at=created_at)
         working_set = build_factor_working_set(
@@ -433,8 +451,8 @@ class GFQuantOrchestrator:
             snapshot,
             working_set,
             resolved_epoch_id,
-            evaluation_start=evaluation_start,
-            evaluation_end=evaluation_end,
+            evaluation_start=effective_evaluation_start,
+            evaluation_end=effective_evaluation_end,
         )
 
         trials: list[StrategyTrial] = []
@@ -450,8 +468,8 @@ class GFQuantOrchestrator:
                         snapshot_id=snapshot.snapshot_id,
                         working_set=working_set,
                         prior_outcomes=tuple(prior),
-                        evaluation_start=evaluation_start,
-                        evaluation_end=evaluation_end,
+                        evaluation_start=effective_evaluation_start,
+                        evaluation_end=effective_evaluation_end,
                     )
                 )
                 self._validate_candidate(candidate, working_set)
@@ -516,6 +534,6 @@ class GFQuantOrchestrator:
             contributions=contributions,
             factor_demands=demands,
             factor_research_results=tuple(research_results),
-            evaluation_start=evaluation_start,
-            evaluation_end=evaluation_end,
+            evaluation_start=effective_evaluation_start,
+            evaluation_end=effective_evaluation_end,
         )

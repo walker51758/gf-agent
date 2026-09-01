@@ -126,6 +126,10 @@ def test_report_covers_every_layer(tmp_path) -> None:
     assert sorted(trial["factor_names"]) == ["quality", "value"]
     assert trial["signal_lag"] == 1
     assert trial["cost_bps"] == 10
+    assert trial["annual_gate_requirements"] == {
+        "min_valid_years": 2,
+        "min_positive_return_years": 0,
+    }
     assert set(trial["metrics_by_year"]) == {"2022", "2023"}
     assert "observations" in trial["metrics"]
     assert "marginal_annualized_return" not in trial["metrics"]  # headline only

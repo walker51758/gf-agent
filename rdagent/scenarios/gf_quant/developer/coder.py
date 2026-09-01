@@ -88,6 +88,7 @@ class OperatorSpec:
 
 
 _WINDOW = (ArgRule(1, "int", minimum=1),)
+_POSITIVE_LAG = (ArgRule(1, "int", minimum=0),)
 _OPERATOR_LIST: tuple[OperatorSpec, ...] = (
     # Rolling statistics.
     OperatorSpec("ts_mean", "ts_mean(x, n)", 2, 2, _WINDOW),
@@ -119,9 +120,9 @@ _OPERATOR_LIST: tuple[OperatorSpec, ...] = (
     OperatorSpec("ts_argmax", "ts_argmax(x, n)", 2, 2, _WINDOW),
     OperatorSpec("ts_argmin", "ts_argmin(x, n)", 2, 2, _WINDOW),
     # Lagged change.
-    OperatorSpec("delay", "delay(x, n)", 2, 2, _WINDOW),
-    OperatorSpec("delta", "delta(x, n)", 2, 2, _WINDOW),
-    OperatorSpec("pct_change", "pct_change(x, n)", 2, 2, _WINDOW),
+    OperatorSpec("delay", "delay(x, n)", 2, 2, _POSITIVE_LAG),
+    OperatorSpec("delta", "delta(x, n)", 2, 2, _POSITIVE_LAG),
+    OperatorSpec("pct_change", "pct_change(x, n)", 2, 2, _POSITIVE_LAG),
     # Directed point-in-time financial operators.
     OperatorSpec("Self", "Self(x)", 1, 1),
     OperatorSpec("YOY", "YOY(x)", 1, 1),

@@ -151,6 +151,21 @@ def test_epoch_binding_gives_the_service_the_frozen_snapshot(tmp_path) -> None:
     assert epoch.snapshot.snapshot_id
 
 
+def test_epoch_binding_adapts_annual_gate_to_single_year_window(tmp_path) -> None:
+    orchestrator, _factors, _registry, service, _researcher = _build(tmp_path)
+
+    orchestrator.run_epoch(
+        data_cutoff="2023-12-31",
+        epoch_id="single_year",
+        evaluation_start="2024-01-02",
+        evaluation_end="2024-12-31",
+    )
+
+    assert service._service.policy.annual_requirements(
+        service._service._expected_evaluation_years
+    ) == {"min_valid_years": 1, "min_positive_return_years": 0}
+
+
 def test_service_refuses_to_process_before_an_epoch_is_bound(tmp_path) -> None:
     _orchestrator, factor_registry, _s, service, _r = _build(tmp_path)
     candidate = StrategyCandidate(
@@ -258,6 +273,80 @@ def test_epoch_window_factory_advances_evaluation_provenance(tmp_path) -> None:
     assert [entry["evaluation_end"] for entry in seen] == ["2021-12-31", "2023-12-31"]
     assert [report["evaluation_start"] for report in reports] == ["2020-01-01", "2022-01-01"]
     assert [report["evaluation_end"] for report in reports] == ["2021-12-31", "2023-12-31"]
+
+
+def test_orchestrator_resolves_builder_default_window_for_report_and_service(tmp_path) -> None:
+    orchestrator, _f, _s, service, _r = _build(tmp_path)
+    seen: list[tuple[str | None, str | None]] = []
+
+    def factory(**kwargs):
+        seen.append((kwargs.get("evaluation_start"), kwargs.get("evaluation_end")))
+        return _strategy_evaluation
+
+    service._evaluator_factory = factory
+    epoch = orchestrator.run_epoch(data_cutoff="2023-12-31", epoch_id="defaults")
+
+    assert (epoch.evaluation_start, epoch.evaluation_end) == ("2020-01-01", "2023-12-31")
+    assert seen == [("2020-01-01", "2023-12-31")]
+
+
+def test_load_epoch_windows_rejects_bad_dates_backwards_and_overlap(tmp_path) -> None:
+    path = tmp_path / "windows.json"
+
+    path.write_text(
+        json.dumps(
+            [
+                {
+                    "data_cutoff": "2023-12-31",
+                    "evaluation_start": "2024-01-02",
+                    "evaluation_end": "2024-12-31",
+                },
+                {
+                    "data_cutoff": "2023-12-30",
+                    "evaluation_start": "2025-01-02",
+                    "evaluation_end": "2025-12-31",
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="moves data_cutoff backwards"):
+        load_epoch_windows(path)
+
+    path.write_text(
+        json.dumps(
+            [
+                {
+                    "data_cutoff": "2023-12-31",
+                    "evaluation_start": "2024-01-02",
+                    "evaluation_end": "2024-12-31",
+                },
+                {
+                    "data_cutoff": "2024-12-31",
+                    "evaluation_start": "2024-06-01",
+                    "evaluation_end": "2025-12-31",
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="overlaps"):
+        load_epoch_windows(path)
+
+    path.write_text(
+        json.dumps(
+            [
+                {
+                    "data_cutoff": "not-a-date",
+                    "evaluation_start": "2024-01-02",
+                    "evaluation_end": "2024-12-31",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="ISO date"):
+        load_epoch_windows(path)
 
 
 def test_load_epoch_windows_validates_explicit_schedule(tmp_path) -> None:

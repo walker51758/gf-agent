@@ -63,7 +63,34 @@ class StrategyAcceptancePolicy:
             return None
         return number if math.isfinite(number) else None
 
-    def _annual_failures(self, metrics: Mapping[str, Any]) -> list[str]:
+    def annual_requirements(self, expected_years: int | None = None) -> dict[str, int]:
+        """Resolve stability requirements for the bound evaluation window.
+
+        A rolling outer epoch may intentionally evaluate only one calendar
+        year. Such an epoch cannot provide two valid or positive years, so the
+        configured multi-year requirements are capped by the number of years
+        the window can actually contain. Missing years still fail closed:
+        ``expected_years`` comes from the requested window, not from the worker
+        payload.
+        """
+
+        if expected_years is not None and expected_years < 1:
+            raise ValueError("expected_years must be positive")
+        return {
+            "min_valid_years": min(self.min_valid_years, expected_years)
+            if expected_years is not None
+            else self.min_valid_years,
+            "min_positive_return_years": min(self.min_positive_return_years, expected_years)
+            if expected_years is not None
+            else self.min_positive_return_years,
+        }
+
+    def _annual_failures(
+        self,
+        metrics: Mapping[str, Any],
+        *,
+        expected_years: int | None = None,
+    ) -> list[str]:
         by_year = metrics.get("metrics_by_year")
         if not isinstance(by_year, Mapping) or not by_year:
             # Fail closed: without a yearly breakdown the stability of the
@@ -78,13 +105,20 @@ class StrategyAcceptancePolicy:
                 valid += 1
                 if self._finite(values, "annualized_return") > 0:
                     positive += 1
-        if valid < self.min_valid_years:
+        requirements = self.annual_requirements(expected_years)
+        if valid < requirements["min_valid_years"]:
             return ["strategy_valid_years"]
-        if positive < self.min_positive_return_years:
+        if positive < requirements["min_positive_return_years"]:
             return ["strategy_positive_return_years"]
         return []
 
-    def check(self, metrics: Mapping[str, Any], candidate: StrategyCandidate) -> tuple[bool, list[str]]:
+    def check(
+        self,
+        metrics: Mapping[str, Any],
+        candidate: StrategyCandidate,
+        *,
+        expected_years: int | None = None,
+    ) -> tuple[bool, list[str]]:
         checks: list[tuple[str, float | None, Callable[[float], bool]]] = [
             (
                 "strategy_signal_lag",
@@ -133,7 +167,7 @@ class StrategyAcceptancePolicy:
                 )
             )
         failures = [name for name, value, predicate in checks if value is None or not predicate(value)]
-        failures.extend(self._annual_failures(metrics))
+        failures.extend(self._annual_failures(metrics, expected_years=expected_years))
         return not failures, failures
 
 
@@ -232,6 +266,19 @@ class StrategyAcceptanceService:
         # Read-only reference: lets a strategy be audited against the factors it
         # claims to use.  Nothing is ever written to the factor registry here.
         self.factor_registry = factor_registry
+        self._expected_evaluation_years: int | None = None
+
+    def bind_evaluation_window(self, evaluation_start: str, evaluation_end: str) -> None:
+        """Bind the calendar-year capacity used by the annual stability gate."""
+
+        try:
+            start = pd.Timestamp(evaluation_start)
+            end = pd.Timestamp(evaluation_end)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("strategy evaluation window must contain ISO dates") from exc
+        if start > end:
+            raise ValueError("strategy evaluation start must not be after end")
+        self._expected_evaluation_years = int(end.year - start.year + 1)
 
     def _referenced_factors(self, candidate: StrategyCandidate) -> dict[str, dict[str, Any]]:
         """Resolve referenced factors for auditability (missing ones are kept)."""
@@ -290,7 +337,11 @@ class StrategyAcceptanceService:
         existing_signatures: Iterable[FactorSignature] | None = None,
     ) -> StrategyProcessingResult:
         evaluation = self.evaluator(candidate)
-        passed, failures = self.policy.check(dict(evaluation.metrics), candidate)
+        passed, failures = self.policy.check(
+            dict(evaluation.metrics),
+            candidate,
+            expected_years=self._expected_evaluation_years,
+        )
         if evaluation.returns is None or evaluation.returns.empty:
             # Fail closed: without a daily return series neither the redundancy
             # check nor a reproducible audit is possible.
@@ -302,6 +353,9 @@ class StrategyAcceptanceService:
             "hypothesis": candidate.hypothesis,
             "gate_failures": failures,
             "referenced_factors": self._referenced_factors(candidate),
+            "annual_gate_requirements": self.policy.annual_requirements(
+                self._expected_evaluation_years
+            ),
         }
         if not passed:
             record = self.registry.upsert(

@@ -477,6 +477,36 @@ def test_strategy_policy_can_enforce_validation_target_and_yearly_stability() ->
     }.issubset(failures)
 
 
+def test_strategy_policy_caps_stability_gate_to_bound_single_year_window() -> None:
+    policy = StrategyAcceptancePolicy(
+        min_annualized_return=0.08,
+        min_excess_annualized_return=0.0,
+        min_valid_years=2,
+        min_positive_return_years=2,
+    )
+    candidate = _candidate(name="single_year_validation")
+    metrics = {
+        "observations": 242,
+        "avg_holdings": 50,
+        "annualized_return": 0.20,
+        "excess_annualized_return": 0.05,
+        "sharpe": 0.8,
+        "max_drawdown": -0.2,
+        "annual_turnover": 3.0,
+        "metrics_by_year": {
+            "2024": {"annualized_return": 0.20, "sharpe": 0.8},
+        },
+    }
+
+    passed_single, failures_single = policy.check(metrics, candidate, expected_years=1)
+    passed_multi, failures_multi = policy.check(metrics, candidate, expected_years=2)
+
+    assert passed_single is True
+    assert failures_single == []
+    assert passed_multi is False
+    assert "strategy_valid_years" in failures_multi
+
+
 def test_strategy_service_marks_overlapping_strategies_as_duplicates(tmp_path) -> None:
     service = _service(tmp_path, _skilled_backtest())
     first = service.process(_candidate())

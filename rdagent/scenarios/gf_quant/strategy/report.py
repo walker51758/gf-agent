@@ -80,6 +80,7 @@ def _trial_payload(trial: StrategyTrial) -> dict[str, Any]:
         "metrics_by_year": {},
         "artifact_path": None,
         "artifact_checksum": None,
+        "annual_gate_requirements": {},
     }
     if result is not None and result.evaluation is not None:
         metrics = result.evaluation.metrics
@@ -92,6 +93,10 @@ def _trial_payload(trial: StrategyTrial) -> dict[str, Any]:
             }
         payload["artifact_path"] = result.evaluation.artifact_path
         payload["artifact_checksum"] = result.evaluation.artifact_checksum
+    if result is not None:
+        requirements = result.record.metadata.get("annual_gate_requirements", {})
+        if isinstance(requirements, Mapping):
+            payload["annual_gate_requirements"] = _json_safe(requirements)
     return payload
 
 

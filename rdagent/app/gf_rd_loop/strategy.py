@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import date
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
@@ -52,6 +53,26 @@ from rdagent.scenarios.gf_quant.strategy.service import (
 )
 
 REBALANCE_FREQUENCIES = ("daily", "weekly", "monthly", "quarterly")
+
+
+def _parse_iso_date(value: str, *, label: str) -> date:
+    try:
+        return date.fromisoformat(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{label} must be an ISO date (YYYY-MM-DD): {value!r}") from exc
+
+
+def _validate_epoch_window(window: Mapping[str, str], *, index: int | None = None) -> None:
+    prefix = f"epoch window {index} " if index is not None else "epoch window "
+    # The snapshot cutoff may be later than a historical evaluation window:
+    # factor panels are point-in-time by observation date, while the cutoff
+    # controls which registry versions are visible.  Validate its syntax, but
+    # do not impose a false chronological relationship with the backtest.
+    _parse_iso_date(window["data_cutoff"], label=f"{prefix}data_cutoff")
+    start = _parse_iso_date(window["evaluation_start"], label=f"{prefix}evaluation_start")
+    end = _parse_iso_date(window["evaluation_end"], label=f"{prefix}evaluation_end")
+    if start > end:
+        raise ValueError(f"{prefix}has evaluation_start after evaluation_end")
 
 
 def epoch_summary(result: OuterEpochResult) -> dict[str, Any]:
@@ -98,14 +119,24 @@ def run_strategy_epochs(
     destination = Path(report_dir)
     destination.mkdir(parents=True, exist_ok=True)
 
+    # Direct callers may omit the window even though the real assembled
+    # orchestrator has an explicit default.  Resolve that default here so the
+    # report and the evaluator receive identical effective dates.
+    effective_default_start = evaluation_start
+    effective_default_end = evaluation_end
+    if effective_default_start is None and effective_default_end is None:
+        effective_default_start = getattr(orchestrator, "default_evaluation_start", None)
+        effective_default_end = getattr(orchestrator, "default_evaluation_end", None)
+    if (effective_default_start is None) != (effective_default_end is None):
+        raise ValueError("evaluation window requires both start and end")
     reports: list[dict[str, Any]] = []
     for index in range(epochs):
         result: OuterEpochResult | None = None
         error: str | None = None
         window: dict[str, str | None] = {
             "data_cutoff": data_cutoff,
-            "evaluation_start": evaluation_start,
-            "evaluation_end": evaluation_end,
+            "evaluation_start": effective_default_start,
+            "evaluation_end": effective_default_end,
         }
         if epoch_window_factory is not None:
             overrides = dict(epoch_window_factory(index))
@@ -114,6 +145,15 @@ def run_strategy_epochs(
                 raise ValueError(f"epoch window contains unsupported keys: {unknown}")
             window.update(overrides)
         try:
+            if window["evaluation_start"] is None or window["evaluation_end"] is None:
+                raise ValueError("evaluation window requires both start and end")
+            _validate_epoch_window(
+                {
+                    "data_cutoff": str(window["data_cutoff"]),
+                    "evaluation_start": str(window["evaluation_start"]),
+                    "evaluation_end": str(window["evaluation_end"]),
+                },
+            )
             result = orchestrator.run_epoch(
                 data_cutoff=str(window["data_cutoff"]),
                 evaluation_start=window["evaluation_start"],
@@ -156,8 +196,22 @@ def load_epoch_windows(path: str | Path) -> list[dict[str, str]]:
         window = {key: str(item[key]) for key in required}
         if any(not value for value in window.values()):
             raise ValueError(f"epoch window {index} contains an empty date")
-        if window["evaluation_start"] > window["evaluation_end"]:
-            raise ValueError(f"epoch window {index} has evaluation_start after evaluation_end")
+        _validate_epoch_window(window, index=index)
+        if windows:
+            previous = windows[-1]
+            for field in ("data_cutoff", "evaluation_start", "evaluation_end"):
+                if _parse_iso_date(window[field], label=f"epoch window {index} {field}") < _parse_iso_date(
+                    previous[field], label=f"epoch window {index - 1} {field}"
+                ):
+                    raise ValueError(f"epoch window {index} moves {field} backwards")
+            previous_end = _parse_iso_date(
+                previous["evaluation_end"], label=f"epoch window {index - 1} evaluation_end"
+            )
+            current_start = _parse_iso_date(
+                window["evaluation_start"], label=f"epoch window {index} evaluation_start"
+            )
+            if current_start <= previous_end:
+                raise ValueError(f"epoch window {index} overlaps the previous evaluation window")
         windows.append(window)
     return windows
 
@@ -187,6 +241,9 @@ class EpochBoundStrategyService:
         evaluation_start: str | None = None,
         evaluation_end: str | None = None,
     ) -> None:
+        if evaluation_start is None or evaluation_end is None:
+            raise ValueError("bound strategy epoch requires an evaluation window")
+        self._service.bind_evaluation_window(evaluation_start, evaluation_end)
         self._bound = True
         self._service.evaluator = self._evaluator_factory(
             snapshot=snapshot,
@@ -367,6 +424,8 @@ def build_strategy_orchestrator(
         factor_research_engine=factor_research,
         config=config or OuterEpochConfig(),
         snapshot_dir=snapshot_dir,
+        default_evaluation_start=default_evaluation_start,
+        default_evaluation_end=default_evaluation_end,
     )
 
 

@@ -638,17 +638,17 @@ def ts_argmin(x: pd.DataFrame, window: int) -> pd.DataFrame:
     return _rolling(x, int(window)).apply(_offset, raw=True)
 
 
-@operator_spec("delay(x, n)", min_args=2, max_args=2, arguments=(ArgRule(1, "int", minimum=1),))
+@operator_spec("delay(x, n)", min_args=2, max_args=2, arguments=(ArgRule(1, "int", minimum=0),))
 def delay(x: pd.DataFrame, periods: int) -> pd.DataFrame:
     return x.shift(int(periods))
 
 
-@operator_spec("delta(x, n)", min_args=2, max_args=2, arguments=(ArgRule(1, "int", minimum=1),))
+@operator_spec("delta(x, n)", min_args=2, max_args=2, arguments=(ArgRule(1, "int", minimum=0),))
 def delta(x: pd.DataFrame, periods: int) -> pd.DataFrame:
     return x.diff(int(periods))
 
 
-@operator_spec("pct_change(x, n)", min_args=2, max_args=2, arguments=(ArgRule(1, "int", minimum=1),))
+@operator_spec("pct_change(x, n)", min_args=2, max_args=2, arguments=(ArgRule(1, "int", minimum=0),))
 def pct_change(x: pd.DataFrame, periods: int) -> pd.DataFrame:
     return _finite(x.pct_change(int(periods), fill_method=None))
 
