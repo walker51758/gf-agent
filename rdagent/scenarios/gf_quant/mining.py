@@ -7,6 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from rdagent.scenarios.gf_quant.developer.coder import describe_operators
 from rdagent.scenarios.gf_quant.metrics import format_factor_feedback
 from rdagent.scenarios.gf_quant.service import FactorAcceptanceService, FactorCandidate, ProcessingResult
 
@@ -32,14 +33,18 @@ class RDAGentDSLProposer:
             "adjclose, adjopen, adjhigh, adjlow, volume, amount, turnover, mv"
             if family == "price_volume"
             else "mv, pb, pe, ps, balance__parent_equity, balance__total_assets, "
-            "income__net_profit, cashflow__net_oper_cash_flow"
+            "income__net_profit, cashflow__net_oper_cash_flow, industry"
         )
         user_prompt = f"""
 Propose 1-3 causal China A-share {family} factor candidates.
 Available fields: {fields}.
-Safe functions: pct_change(x,n), ts_mean(x,n), ts_std(x,n), delay(x,n),
-delta(x,n), cs_rank(x), signed_log(x), winsorize(x,p), plus arithmetic.
+Safe operators, one group per line:
+{describe_operators()}
+plus numeric arithmetic +, -, *, /, ** and parentheses. Windows and shifts must
+be positive integer literals and the winsorize quantile a literal in (0, 0.5).
 Financial fields are point-in-time and become available on announcement date.
+Capitalised quarterly operators require raw financial fields and align by the
+accounting report period; never imitate YOY/QOQ with trading-day shifts.
 Return a JSON object with key candidates. Each candidate must contain name,
 family, hypothesis, and expression. Do not use future data.
 Previous multi-metric feedback:

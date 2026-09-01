@@ -732,8 +732,8 @@
       </div>
       <div class="kpi k2">
         <div class="label">评估窗口</div>
-        <div class="value">2022–2023<span class="unit">两年</span></div>
-        <div class="desc">牛熊反弹全覆盖</div>
+        <div class="value">2020–2023<span class="unit">四年</span></div>
+        <div class="desc">多市场阶段逐年评估</div>
       </div>
       <div class="kpi k3">
         <div class="label">硬门槛</div>
@@ -972,7 +972,7 @@
         <div class="step-card">
           <span class="s-num">STEP 01</span>
           <div class="s-title">研究循环启动</div>
-          <div class="s-desc">本地发起启动命令，装配 LLM 后端（DeepSeek），加载场景配置：评估窗口 2022-01-01 至 2023-12-31、远端数据根目录、SSH 凭据等。</div>
+          <div class="s-desc">本地发起启动命令，装配 LLM 后端（DeepSeek），加载场景配置：评估窗口 2020-01-01 至 2023-12-31、远端数据根目录、SSH 凭据等。</div>
           <span class="s-tag local">本地</span>
         </div>
         <div class="step-card">
@@ -1419,7 +1419,7 @@
         <div class="tl-event t-llm">
           <div class="e-time">T+0s</div>
           <div class="e-title">研究循环启动</div>
-          <div class="e-desc">本地发起启动命令；装载 DeepSeek 后端；加载评估窗口（2022-01-01 至 2023-12-31）和远端数据机配置。同步完成，几秒内进入主循环。</div>
+          <div class="e-desc">本地发起启动命令；装载 DeepSeek 后端；加载评估窗口（2020-01-01 至 2023-12-31）和远端数据机配置。同步完成，几秒内进入主循环。</div>
           <span class="e-tag pill-info">本地编排</span>
         </div>
 
@@ -1533,7 +1533,7 @@
   "lookback_days": 180,
   "artifact_path": "G:/gf_quant_agent/artifacts/pv_reversal_20.parquet",
   "evaluation": {
-    "start": "2022-01-01",
+    "start": "2020-01-01",
     "end": "2023-12-31",
     "label_horizon": 5,
     "quantile": 0.2,
@@ -1632,7 +1632,7 @@
         <li><strong>上游：</strong>广发自有 A 股数据 + DeepSeek 大模型 + 远程数据机 SSH 通道</li>
         <li><strong>中游：</strong>假设 → 远端评估 → 门槛 → 去重 → 登记的 11 步业务闭环</li>
         <li><strong>下游：</strong>已登记因子库（SQLite 元数据 + 远端 Parquet 因子值）</li>
-        <li><strong>关键约束：</strong>评估窗口固定 2022–2023；6 项硬指标缺一不可；4 道去重避免换皮；公告日口径防未来信息</li>
+        <li><strong>关键约束：</strong>评估窗口固定 2020–2023 并逐年反馈；6 项总体硬指标及临时年度稳定性门槛；4 道去重避免换皮；公告日口径防未来信息</li>
         <li><strong>失败态度：</strong>单点失败不拖垮整轮；远端故障不静默回退；所有失败都留档备查</li>
       </ul>
     </div>
@@ -1694,7 +1694,7 @@
       if (!e.isIntersecting) return;
       const el = e.target;
       const text = el.textContent.trim();
-      // 简单处理 "0–1" / "2022–2023" / "6" / "4" 的展示，不做插值动画（避免误导）
+      // 简单处理 "0–1" / "2020–2023" / "6" / "4" 的展示，不做插值动画（避免误导）
       counterObserver.unobserve(el);
     });
   }, { threshold: 0.5 });

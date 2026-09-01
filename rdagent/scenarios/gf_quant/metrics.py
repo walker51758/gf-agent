@@ -61,6 +61,25 @@ def format_factor_feedback(
             delta = current_value - baseline_value if current_value is not None and baseline_value is not None else None
             lines.append(f"- {label}: current={_fmt(current_value)}, baseline={_fmt(baseline_value)}, delta={_fmt(delta)}")
 
+    # Deterministic per-year rendering: years sorted as strings, metric keys in
+    # the worker's canonical order first, then any extra keys alphabetically.
+    lines.append("- Metrics by year:")
+    by_year = current.get("metrics_by_year")
+    if isinstance(by_year, Mapping) and by_year:
+        for year in sorted(by_year, key=str):
+            values = by_year[year]
+            if not isinstance(values, Mapping):
+                lines.append(f"  - {year}: {values}")
+                continue
+            known = [key for _, aliases in METRIC_ALIASES for key in aliases if key in values]
+            extra = sorted(set(values) - set(known))
+            rendered = ", ".join(f"{key}={_fmt(_value(values, (key,)))}" for key in (*known, *extra))
+            lines.append(f"  - {year}: {rendered}")
+    else:
+        lines.append("  - N/A")
+
+    # Legacy compatibility: older payloads only carried the compact
+    # stability_by_year summary, which is still rendered when present.
     stability = current.get("stability_by_year") or current.get("stability_by_subperiod")
     lines.append("- Stability by subperiod:")
     if isinstance(stability, Mapping) and stability:

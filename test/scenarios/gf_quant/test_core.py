@@ -11,6 +11,7 @@ from rdagent.scenarios.gf_quant.data.loader import build_daily_pv_from_base, bui
 from rdagent.scenarios.gf_quant.metrics import format_factor_feedback
 from rdagent.scenarios.gf_quant.registry import FactorRecord, FactorRegistry
 from rdagent.scenarios.gf_quant.service import (
+    AcceptancePolicy,
     EvaluationResult,
     FactorAcceptanceService,
     FactorCandidate,
@@ -54,12 +55,26 @@ def test_metric_feedback_is_complete_and_handles_missing_values() -> None:
             "coverage": 0.9,
             "long_short_spread_daily": 0.001,
             "win_rate": 0.52,
+            "metrics_by_year": {
+                "2021": {"Rank_IC": 0.05, "observations": 240, "ic_observations": 48},
+                "2020": {"Rank_IC": 0.03, "observations": 242, "ic_observations": 49},
+            },
             "stability_by_year": {"2025": {"annualized_return": 0.12, "days": 240}},
         }
     )
     for label in ("ICIR", "RankICIR", "Annualized return", "Turnover", "Coverage", "Win rate", "2025"):
         assert label in text
     assert "N/A" in text  # absent standard deviations are rendered, not crashed
+    assert "Metrics by year:" in text
+    assert text.index("- 2020: ") < text.index("- 2021: ")  # years render deterministically
+    assert "Rank_IC=0.030000" in text and "Rank_IC=0.050000" in text
+    assert "observations=242" in text and "ic_observations=49" in text
+
+
+def test_metric_feedback_renders_years_without_annual_metrics() -> None:
+    text = format_factor_feedback({"Rank_IC": 0.04})
+    assert "- Metrics by year:" in text
+    assert "  - N/A" in text
 
 
 def test_dedup_exact_and_statistical_reasons() -> None:
@@ -106,31 +121,104 @@ def test_registry_roundtrip_and_filters(tmp_path) -> None:
     assert registry.list(family="price_volume", status="accepted") == [stored]
 
 
+def _annual_metrics(rank_ic: float, yearly_rank_ic: dict[str, float]) -> dict:
+    """Aggregate metrics that pass every aggregate gate, plus a yearly breakdown."""
+
+    return {
+        "Rank_IC": rank_ic,
+        "annualized_return": 0.08,
+        "sharpe": 0.55,
+        "max_drawdown": -0.16,
+        "turnover": 0.2,
+        "coverage": 0.99,
+        "metrics_by_year": {
+            year: {"Rank_IC": value, "coverage": 0.99, "observations": 240}
+            for year, value in yearly_rank_ic.items()
+        },
+    }
+
+
 def test_acceptance_service_supports_both_families_and_rejection(tmp_path) -> None:
     registry = FactorRegistry(tmp_path / "factors.sqlite")
+    good_yearly = {"2020": 0.04, "2021": 0.05, "2022": -0.06, "2023": 0.04}
 
     def evaluator(candidate: FactorCandidate) -> EvaluationResult:
         good = candidate.name != "weak"
-        return EvaluationResult(
-            metrics={
-                "Rank_IC": 0.05 if good else 0.001,
-                "annualized_return": 0.08 if good else -0.10,
-                "sharpe": 0.55 if good else -0.5,
+        metrics = (
+            _annual_metrics(0.05, good_yearly)
+            if good
+            else {
+                "Rank_IC": 0.001,
+                "annualized_return": -0.10,
+                "sharpe": -0.5,
                 "max_drawdown": -0.16,
                 "turnover": 0.2,
                 "coverage": 0.99,
-            },
+                "metrics_by_year": {year: {"Rank_IC": 0.001} for year in good_yearly},
+            }
+        )
+        return EvaluationResult(
+            metrics=metrics,
             artifact_path=f"G:/artifacts/{candidate.name}.parquet",
             artifact_checksum="checksum",
         )
 
-    service = FactorAcceptanceService(registry, evaluator)
+    service = FactorAcceptanceService(registry, evaluator, calibrations={})  # explicit development fallback
     pv = service.process(FactorCandidate("pv", "price_volume", "-pct_change(adjclose, 20)"))
     fundamental = service.process(FactorCandidate("fund", "fundamental", "cs_rank(balance__parent_equity / mv)"))
     weak = service.process(FactorCandidate("weak", "fundamental", "cs_rank(income__net_profit / mv)"))
     assert pv.record.status == fundamental.record.status == "accepted"
     assert weak.record.status == "rejected"
     assert "rank_ic" in weak.gate_failures
+
+
+def test_temporary_annual_gate_requires_enough_finite_years() -> None:
+    policy = AcceptancePolicy(annual_min_years_with_rank_ic=3, annual_min_matching_sign_years=2)
+
+    three_years = _annual_metrics(0.05, {"2020": 0.04, "2021": 0.05, "2022": 0.03})
+    passed, failures = policy.check(three_years)
+    assert passed and failures == []
+
+    two_years = _annual_metrics(0.05, {"2020": 0.04, "2021": 0.05})
+    passed, failures = policy.check(two_years)
+    assert not passed and failures == ["annual_rank_ic_years"]
+
+    # NaN years count as absent, not as a sign match.
+    nan_year = _annual_metrics(0.05, {"2020": 0.04, "2021": 0.05, "2022": float("nan")})
+    passed, failures = policy.check(nan_year)
+    assert not passed and failures == ["annual_rank_ic_years"]
+
+
+def test_temporary_annual_gate_requires_matching_aggregate_sign(tmp_path) -> None:
+    policy = AcceptancePolicy(annual_min_years_with_rank_ic=3, annual_min_matching_sign_years=2)
+
+    aligned = _annual_metrics(-0.05, {"2020": -0.04, "2021": -0.05, "2022": 0.03, "2023": -0.02})
+    passed, failures = policy.check(aligned)
+    assert passed and failures == []
+
+    misaligned = _annual_metrics(0.05, {"2020": -0.04, "2021": -0.05, "2022": 0.03, "2023": -0.02})
+    passed, failures = policy.check(misaligned)
+    assert not passed and failures == ["annual_rank_ic_sign_alignment"]
+
+    zero_aggregate = _annual_metrics(0.0, {"2020": 0.04, "2021": 0.05, "2022": 0.03})
+    passed, failures = policy.check(zero_aggregate)
+    # the aggregate Rank_IC gate also fails, but no year can match a zero sign
+    assert not passed and "annual_rank_ic_sign_alignment" in failures
+
+
+def test_temporary_annual_gate_fails_closed_without_yearly_metrics(tmp_path) -> None:
+    policy = AcceptancePolicy()
+
+    legacy = {
+        "Rank_IC": 0.05,
+        "annualized_return": 0.08,
+        "sharpe": 0.55,
+        "max_drawdown": -0.16,
+        "turnover": 0.2,
+        "coverage": 0.99,
+    }
+    passed, failures = policy.check(legacy)
+    assert not passed and failures == ["annual_metrics_by_year_missing"]
 
 
 def test_base_adapter_uses_adjusted_prices_and_announcement_dates(tmp_path) -> None:

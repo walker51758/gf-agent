@@ -1,0 +1,3246 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-08-30T07:38:07Z",
+  "evaluation": {
+    "start": "2020-01-01",
+    "end": "2023-12-31",
+    "label_horizon": 5,
+    "quantile": 0.2,
+    "min_cross_section": 100,
+    "sample_step": 5,
+    "close_field": "adjclose"
+  },
+  "provenance": {
+    "remote_out_dir": "G:/gf_quant_agent/benchmark",
+    "raw_dir": "git_ignore_folder/gf_benchmark/raw",
+    "signature_dir": "git_ignore_folder/gf_benchmark/signatures",
+    "standards_path": "configs/gf_quant/benchmark_standards.json",
+    "worker": "scripts/gf_quant_benchmark_worker.py",
+    "controller": "scripts/gf_quant_benchmark_controller.py",
+    "source_dirs": {
+      "price_volume": [
+        "G:/gf_quant_agent/artifacts",
+        "G:/gf_quant_agent/alpha158"
+      ],
+      "fundamental": [
+        "G:/gf_quant_agent/basic_fundamental"
+      ]
+    }
+  },
+  "families": {
+    "price_volume": {
+      "standards": {
+        "family": "price_volume",
+        "min_abs_rank_ic": 0.017432692094435456,
+        "min_abs_rank_icir": 0.217482302496028,
+        "min_coverage": 0.9386682604354799,
+        "max_turnover": 0.7272665214228944,
+        "max_abs_drawdown": 0.19600248176095586,
+        "min_observations": 483,
+        "annual_min_valid_years": 4,
+        "annual_min_matching_sign_years": 2,
+        "min_direction_adjusted_annualized_return": 0.08206144610963607,
+        "min_direction_adjusted_sharpe": 1.1127106468793175
+      },
+      "clusters": [
+        {
+          "cluster_id": 0,
+          "representative": "BETA20",
+          "members": [
+            "BETA20",
+            "BETA30",
+            "BETA60",
+            "CNTD10",
+            "CNTD20",
+            "CNTD30",
+            "CNTD5",
+            "CNTD60",
+            "IMXD10",
+            "IMXD20",
+            "IMXD30",
+            "IMXD5",
+            "IMXD60",
+            "MA10",
+            "MA20",
+            "MA30",
+            "MA5",
+            "MA60",
+            "MAX10",
+            "MAX20",
+            "MAX30",
+            "MAX5",
+            "MAX60",
+            "MIN10",
+            "MIN20",
+            "MIN30",
+            "MIN5",
+            "MIN60",
+            "QTLD10",
+            "QTLD20",
+            "QTLD30",
+            "QTLD5",
+            "QTLD60",
+            "QTLU10",
+            "QTLU20",
+            "QTLU30",
+            "QTLU5",
+            "QTLU60",
+            "RANK10",
+            "RANK20",
+            "RANK30",
+            "RANK5",
+            "RANK60",
+            "ROC10",
+            "ROC20",
+            "ROC30",
+            "ROC5",
+            "ROC60",
+            "RSV10",
+            "RSV20",
+            "RSV30",
+            "RSV5",
+            "RSV60",
+            "SUMD10",
+            "SUMD20",
+            "SUMD30",
+            "SUMD5",
+            "SUMD60",
+            "SUMN10",
+            "SUMN20",
+            "SUMN30",
+            "SUMN5",
+            "SUMN60",
+            "SUMP10",
+            "SUMP20",
+            "SUMP30",
+            "SUMP5",
+            "SUMP60",
+            "VSUMD60",
+            "close_position_reversal_5d",
+            "downside_vol_ratio_20d",
+            "fund_cash_yield_mom_4q",
+            "intraday_close_high_rev_5d",
+            "intraday_reversal_3d",
+            "ma_crossover_20_60",
+            "midpoint_reversal_5d",
+            "mom_20d",
+            "mom_60d",
+            "mom_amount_confirm_20d",
+            "mom_avg_ret_20d",
+            "mom_efficiency_20d",
+            "mom_efficiency_60d",
+            "mom_efficiency_range_20d",
+            "mom_high_skip_10_50",
+            "mom_intraday_20d",
+            "mom_low_skip_10_50",
+            "mom_ma_cross_12_26",
+            "mom_ma_dist_20d",
+            "mom_midpoint_20d",
+            "mom_open_20d",
+            "mom_risk_adj_20d",
+            "mom_skip_10_50",
+            "mom_trend_vol_60d",
+            "range_weighted_reversal_5d",
+            "rev_20d",
+            "rev_3d_intraday_vol_scaled",
+            "rev_3d_range_scaled",
+            "rev_3d_vol_scaled",
+            "rev_5d",
+            "rev_5d_1lag_clean",
+            "rev_5d_abn_volume",
+            "rev_5d_liq_amount",
+            "rev_5d_range_scaled",
+            "rev_5d_vol_adj",
+            "rev_5d_volume_vol",
+            "rev_vol_adj_20d",
+            "reversal_10d",
+            "reversal_adjclose_5d",
+            "vol_adjusted_reversal_5d",
+            "vol_confirmed_mom_20d",
+            "volume_confirmed_reversal_5d",
+            "volume_surge_reversal_5d",
+            "volume_weighted_midpoint_reversal_5d",
+            "volume_weighted_return_reversal_5d"
+          ],
+          "size": 114
+        },
+        {
+          "cluster_id": 1,
+          "representative": "KLEN",
+          "members": [
+            "KLEN",
+            "STD10",
+            "STD20",
+            "STD30",
+            "STD5",
+            "STD60",
+            "downside_semidev_20d",
+            "downside_var_20d",
+            "intraday_vol_oc_20d",
+            "intraday_vol_range_open_20d",
+            "liquidity_rank_smooth_10d",
+            "liquidity_rank_smooth_20d",
+            "liquidity_smooth_amt_mv_20d",
+            "liquidity_smooth_amt_mv_60d",
+            "liquidity_smooth_amt_mv_both_20d",
+            "min_vol_rank",
+            "overnight_vol_20d",
+            "prod_vol_rank",
+            "range_turnover_beta_20d",
+            "relative_highlow_spread_20d",
+            "signed_log_vol_20d",
+            "signed_log_vol_60d",
+            "total_mv_turnover_illiq",
+            "trend_vol_5d_20d",
+            "turn_norm_amihud_10d",
+            "turnover_illiq_10d",
+            "vol_abs_ret_20d",
+            "vol_garman_klass_20d",
+            "vol_parkinson_open_20d",
+            "vol_range_20d",
+            "vol_rank_sum_overnight_volume",
+            "vol_realized_20d",
+            "vol_realized_60d",
+            "vol_rms_20d",
+            "vol_std_range_20d",
+            "vol_turn_rank_sum",
+            "vol_turn_raw_prod",
+            "vol_var_20d",
+            "volvol_absret_20d",
+            "volvol_absret_60d",
+            "volvol_absret_delta_20d",
+            "vwap_cv_20d"
+          ],
+          "size": 42
+        },
+        {
+          "cluster_id": 2,
+          "representative": "VMA10",
+          "members": [
+            "VMA10",
+            "VMA20",
+            "VMA30",
+            "VMA5",
+            "VMA60",
+            "VSTD10",
+            "VSTD20",
+            "VSTD30",
+            "VSTD5",
+            "VSTD60"
+          ],
+          "size": 10
+        },
+        {
+          "cluster_id": 3,
+          "representative": "amihud_illiq_10d",
+          "members": [
+            "amihud_illiq_10d",
+            "amihud_illiq_20d",
+            "amivest_illiq_20d",
+            "depth_avg_20d",
+            "depth_rank_smooth",
+            "size_adj_amihud_10d",
+            "vol_inter_amihud_10d"
+          ],
+          "size": 7
+        },
+        {
+          "cluster_id": 4,
+          "representative": "KMID",
+          "members": [
+            "KMID",
+            "KMID2",
+            "KSFT",
+            "KSFT2",
+            "OPEN0",
+            "VWAP0"
+          ],
+          "size": 6
+        },
+        {
+          "cluster_id": 5,
+          "representative": "fund_earning_yield_fmv",
+          "members": [
+            "fund_earning_yield_fmv",
+            "fund_earning_yield_raw",
+            "fund_earnings_to_ev",
+            "fund_net_profit_to_liab",
+            "fund_roa",
+            "fund_roe"
+          ],
+          "size": 6
+        },
+        {
+          "cluster_id": 6,
+          "representative": "fund_cash_roa",
+          "members": [
+            "fund_cash_roa",
+            "fund_cashflow_to_equity",
+            "fund_cashflow_yield",
+            "fund_cf_to_ev",
+            "fund_cf_to_liab"
+          ],
+          "size": 5
+        },
+        {
+          "cluster_id": 7,
+          "representative": "VSUMN10",
+          "members": [
+            "VSUMN10",
+            "VSUMN20",
+            "VSUMN30",
+            "VSUMN60"
+          ],
+          "size": 4
+        },
+        {
+          "cluster_id": 8,
+          "representative": "VSUMP10",
+          "members": [
+            "VSUMP10",
+            "VSUMP20",
+            "VSUMP30",
+            "VSUMP60"
+          ],
+          "size": 4
+        },
+        {
+          "cluster_id": 9,
+          "representative": "CNTN20",
+          "members": [
+            "CNTN20",
+            "CNTN30",
+            "CNTN60"
+          ],
+          "size": 3
+        },
+        {
+          "cluster_id": 10,
+          "representative": "CNTP20",
+          "members": [
+            "CNTP20",
+            "CNTP30",
+            "CNTP60"
+          ],
+          "size": 3
+        },
+        {
+          "cluster_id": 11,
+          "representative": "fund_cash_conversion_mom_4q",
+          "members": [
+            "fund_cash_conversion_mom_4q",
+            "fund_cash_roa_improvement",
+            "fund_cashflow_growth"
+          ],
+          "size": 3
+        },
+        {
+          "cluster_id": 12,
+          "representative": "fund_earnings_momentum",
+          "members": [
+            "fund_earnings_momentum",
+            "fund_roa_mom_4q",
+            "fund_roe_improvement"
+          ],
+          "size": 3
+        },
+        {
+          "cluster_id": 13,
+          "representative": "rev_5d_overnight_vol",
+          "members": [
+            "rev_5d_overnight_vol",
+            "reversal_5d_avg_turnover_rank",
+            "reversal_5d_turnover_rank"
+          ],
+          "size": 3
+        },
+        {
+          "cluster_id": 14,
+          "representative": "reversal_10d_avg_turnover_rank",
+          "members": [
+            "reversal_10d_avg_turnover_rank",
+            "reversal_10d_turnover_rank",
+            "reversal_10d_turnover_vol_rank"
+          ],
+          "size": 3
+        },
+        {
+          "cluster_id": 15,
+          "representative": "CORD20",
+          "members": [
+            "CORD20",
+            "CORD30"
+          ],
+          "size": 2
+        },
+        {
+          "cluster_id": 16,
+          "representative": "CORR20",
+          "members": [
+            "CORR20",
+            "CORR30"
+          ],
+          "size": 2
+        },
+        {
+          "cluster_id": 17,
+          "representative": "IMAX20",
+          "members": [
+            "IMAX20",
+            "IMAX30"
+          ],
+          "size": 2
+        },
+        {
+          "cluster_id": 18,
+          "representative": "WVMA20",
+          "members": [
+            "WVMA20",
+            "WVMA30"
+          ],
+          "size": 2
+        },
+        {
+          "cluster_id": 19,
+          "representative": "amount_cv_risk",
+          "members": [
+            "amount_cv_risk",
+            "turnover_stability_20d"
+          ],
+          "size": 2
+        },
+        {
+          "cluster_id": 20,
+          "representative": "fund_accrual_quality",
+          "members": [
+            "fund_accrual_quality",
+            "fund_accruals_to_equity"
+          ],
+          "size": 2
+        },
+        {
+          "cluster_id": 21,
+          "representative": "fund_low_debt_to_market",
+          "members": [
+            "fund_low_debt_to_market",
+            "fund_neg_lev"
+          ],
+          "size": 2
+        },
+        {
+          "cluster_id": 22,
+          "representative": "highlow_amount_illiquidity_20d",
+          "members": [
+            "highlow_amount_illiquidity_20d",
+            "volume_amihud_20d"
+          ],
+          "size": 2
+        },
+        {
+          "cluster_id": 23,
+          "representative": "reversal_20d_abnormal_turnover",
+          "members": [
+            "reversal_20d_abnormal_turnover",
+            "reversal_20d_abnormal_volume"
+          ],
+          "size": 2
+        },
+        {
+          "cluster_id": 24,
+          "representative": "spread_cv_20d",
+          "members": [
+            "spread_cv_20d",
+            "vol_range_cv_20d"
+          ],
+          "size": 2
+        },
+        {
+          "cluster_id": 25,
+          "representative": "BETA10",
+          "members": [
+            "BETA10"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 26,
+          "representative": "BETA5",
+          "members": [
+            "BETA5"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 27,
+          "representative": "CNTN10",
+          "members": [
+            "CNTN10"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 28,
+          "representative": "CNTN5",
+          "members": [
+            "CNTN5"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 29,
+          "representative": "CNTP10",
+          "members": [
+            "CNTP10"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 30,
+          "representative": "CNTP5",
+          "members": [
+            "CNTP5"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 31,
+          "representative": "CORD10",
+          "members": [
+            "CORD10"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 32,
+          "representative": "CORD5",
+          "members": [
+            "CORD5"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 33,
+          "representative": "CORD60",
+          "members": [
+            "CORD60"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 34,
+          "representative": "CORR10",
+          "members": [
+            "CORR10"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 35,
+          "representative": "CORR5",
+          "members": [
+            "CORR5"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 36,
+          "representative": "CORR60",
+          "members": [
+            "CORR60"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 37,
+          "representative": "HIGH0",
+          "members": [
+            "HIGH0"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 38,
+          "representative": "IMAX10",
+          "members": [
+            "IMAX10"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 39,
+          "representative": "IMAX5",
+          "members": [
+            "IMAX5"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 40,
+          "representative": "IMAX60",
+          "members": [
+            "IMAX60"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 41,
+          "representative": "IMIN10",
+          "members": [
+            "IMIN10"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 42,
+          "representative": "IMIN20",
+          "members": [
+            "IMIN20"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 43,
+          "representative": "IMIN30",
+          "members": [
+            "IMIN30"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 44,
+          "representative": "IMIN5",
+          "members": [
+            "IMIN5"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 45,
+          "representative": "IMIN60",
+          "members": [
+            "IMIN60"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 46,
+          "representative": "KLOW",
+          "members": [
+            "KLOW"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 47,
+          "representative": "KLOW2",
+          "members": [
+            "KLOW2"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 48,
+          "representative": "KUP",
+          "members": [
+            "KUP"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 49,
+          "representative": "KUP2",
+          "members": [
+            "KUP2"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 50,
+          "representative": "LOW0",
+          "members": [
+            "LOW0"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 51,
+          "representative": "RESI10",
+          "members": [
+            "RESI10"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 52,
+          "representative": "RESI20",
+          "members": [
+            "RESI20"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 53,
+          "representative": "RESI30",
+          "members": [
+            "RESI30"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 54,
+          "representative": "RESI5",
+          "members": [
+            "RESI5"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 55,
+          "representative": "RESI60",
+          "members": [
+            "RESI60"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 56,
+          "representative": "RSQR10",
+          "members": [
+            "RSQR10"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 57,
+          "representative": "RSQR20",
+          "members": [
+            "RSQR20"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 58,
+          "representative": "RSQR30",
+          "members": [
+            "RSQR30"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 59,
+          "representative": "RSQR5",
+          "members": [
+            "RSQR5"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 60,
+          "representative": "RSQR60",
+          "members": [
+            "RSQR60"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 61,
+          "representative": "VSUMD10",
+          "members": [
+            "VSUMD10"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 62,
+          "representative": "VSUMD20",
+          "members": [
+            "VSUMD20"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 63,
+          "representative": "VSUMD30",
+          "members": [
+            "VSUMD30"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 64,
+          "representative": "VSUMD5",
+          "members": [
+            "VSUMD5"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 65,
+          "representative": "VSUMN5",
+          "members": [
+            "VSUMN5"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 66,
+          "representative": "VSUMP5",
+          "members": [
+            "VSUMP5"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 67,
+          "representative": "WVMA10",
+          "members": [
+            "WVMA10"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 68,
+          "representative": "WVMA5",
+          "members": [
+            "WVMA5"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 69,
+          "representative": "WVMA60",
+          "members": [
+            "WVMA60"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 70,
+          "representative": "amihud_variability_20d",
+          "members": [
+            "amihud_variability_20d"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 71,
+          "representative": "buyback_1y",
+          "members": [
+            "buyback_1y"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 72,
+          "representative": "buyback_1y_float",
+          "members": [
+            "buyback_1y_float"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 73,
+          "representative": "buyback_1y_quality",
+          "members": [
+            "buyback_1y_quality"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 74,
+          "representative": "close_pos_extreme_20d",
+          "members": [
+            "close_pos_extreme_20d"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 75,
+          "representative": "free_float_shortage",
+          "members": [
+            "free_float_shortage"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 76,
+          "representative": "fund_asset_growth_4q",
+          "members": [
+            "fund_asset_growth_4q"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 77,
+          "representative": "fund_cash_to_income",
+          "members": [
+            "fund_cash_to_income"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 78,
+          "representative": "fund_conservative_equity_growth",
+          "members": [
+            "fund_conservative_equity_growth"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 79,
+          "representative": "fund_deleveraging_4q",
+          "members": [
+            "fund_deleveraging_4q"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 80,
+          "representative": "liq_composite",
+          "members": [
+            "liq_composite"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 81,
+          "representative": "liq_lowvol_interact",
+          "members": [
+            "liq_lowvol_interact"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 82,
+          "representative": "liquidity_decline_20d",
+          "members": [
+            "liquidity_decline_20d"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 83,
+          "representative": "ma_slope_vol_20_5",
+          "members": [
+            "ma_slope_vol_20_5"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 84,
+          "representative": "mom_12_1_skip",
+          "members": [
+            "mom_12_1_skip"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 85,
+          "representative": "mom_6m_skip_1m",
+          "members": [
+            "mom_6m_skip_1m"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 86,
+          "representative": "mom_accel_20d_5d",
+          "members": [
+            "mom_accel_20d_5d"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 87,
+          "representative": "mom_high_dist_250d",
+          "members": [
+            "mom_high_dist_250d"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 88,
+          "representative": "mom_hl_breadth_20d",
+          "members": [
+            "mom_hl_breadth_20d"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 89,
+          "representative": "mom_overnight_20d",
+          "members": [
+            "mom_overnight_20d"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 90,
+          "representative": "overnight_gap_reversal_5d",
+          "members": [
+            "overnight_gap_reversal_5d"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 91,
+          "representative": "rev_10d_both_vol",
+          "members": [
+            "rev_10d_both_vol"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 92,
+          "representative": "rev_5d_liq_turn",
+          "members": [
+            "rev_5d_liq_turn"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 93,
+          "representative": "reversal_10d_abturn_rank",
+          "members": [
+            "reversal_10d_abturn_rank"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 94,
+          "representative": "reversal_10d_turnover_smallcap_rank",
+          "members": [
+            "reversal_10d_turnover_smallcap_rank"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 95,
+          "representative": "reversal_20d_adjclose_turnover",
+          "members": [
+            "reversal_20d_adjclose_turnover"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 96,
+          "representative": "reversal_20d_turnover_rank",
+          "members": [
+            "reversal_20d_turnover_rank"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 97,
+          "representative": "reversal_vol_scaled_5d",
+          "members": [
+            "reversal_vol_scaled_5d"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 98,
+          "representative": "roll_spread_20d",
+          "members": [
+            "roll_spread_20d"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 99,
+          "representative": "smallcap_mom_20d",
+          "members": [
+            "smallcap_mom_20d"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 100,
+          "representative": "vol_realized_20d_amount_neglect",
+          "members": [
+            "vol_realized_20d_amount_neglect"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 101,
+          "representative": "vol_regime_ratio_20_60",
+          "members": [
+            "vol_regime_ratio_20_60"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 102,
+          "representative": "vol_turn_rank_prod",
+          "members": [
+            "vol_turn_rank_prod"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 103,
+          "representative": "volume_change_absret_corr_20d",
+          "members": [
+            "volume_change_absret_corr_20d"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 104,
+          "representative": "volume_cv_20d",
+          "members": [
+            "volume_cv_20d"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 105,
+          "representative": "vwap_deviation_reversal_5d",
+          "members": [
+            "vwap_deviation_reversal_5d"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 106,
+          "representative": "vwap_noise_per_range_20d",
+          "members": [
+            "vwap_noise_per_range_20d"
+          ],
+          "size": 1
+        }
+      ],
+      "distributions": [
+        {
+          "metric": "abs_rank_ic",
+          "role": "quality_floor",
+          "quantile": 0.5,
+          "values": [
+            0.0005552321713355496,
+            0.0008243693546870642,
+            0.0011133560425208111,
+            0.0012983498451886615,
+            0.0013331830771931379,
+            0.0018447629383294395,
+            0.0018451007846739507,
+            0.0019480154699860802,
+            0.002000162979354414,
+            0.0022039375227496756,
+            0.0024317981017760388,
+            0.002927713304803526,
+            0.0031821991679099387,
+            0.0034920937823602408,
+            0.0036956515139752073,
+            0.0038438911027620683,
+            0.004878878121735416,
+            0.0048860577449232655,
+            0.00507154523063085,
+            0.005413460434902762,
+            0.005488367856421706,
+            0.005488861294790401,
+            0.005705336023855254,
+            0.005752134955533989,
+            0.006113870274677285,
+            0.007145589830154318,
+            0.007387141315888887,
+            0.008014167671563014,
+            0.008057210724391695,
+            0.008376134942982909,
+            0.008668989546443176,
+            0.009178644505780154,
+            0.009441552623901466,
+            0.009733057111004082,
+            0.010086529556518902,
+            0.010555046703752902,
+            0.010798296454909352,
+            0.011112139104951948,
+            0.0113804812230244,
+            0.011504124802606739,
+            0.012999592372011183,
+            0.013121128878619959,
+            0.013162346802775993,
+            0.013512777785644635,
+            0.013620095398053898,
+            0.013892360096533333,
+            0.014387424795892098,
+            0.014410506513786808,
+            0.015371549136796683,
+            0.016163057425131442,
+            0.016975110376648568,
+            0.017156250773337225,
+            0.017426816006379145,
+            0.01743945513917951,
+            0.01787743660270195,
+            0.018026993468026192,
+            0.018120612725371556,
+            0.018996950292560696,
+            0.019225766446933818,
+            0.019944507729349067,
+            0.020067085381316414,
+            0.020309691722600297,
+            0.020463463700627908,
+            0.020794444570822013,
+            0.02122584633869824,
+            0.021691806429891065,
+            0.02218413558458054,
+            0.022657562232584198,
+            0.023252853237988272,
+            0.023315400422867914,
+            0.023956975460744278,
+            0.024446827845088042,
+            0.025343308022803945,
+            0.02549575060432872,
+            0.025499188603491114,
+            0.02817742563834718,
+            0.02826334637394852,
+            0.028300946583842558,
+            0.028731181223328576,
+            0.028972867797604846,
+            0.029931023575063175,
+            0.030610364134517606,
+            0.030721391302961355,
+            0.03187207966304794,
+            0.03240853932812735,
+            0.032594828330839654,
+            0.03601853268291972,
+            0.036520138850878854,
+            0.03778241373285394,
+            0.03895773634826126,
+            0.039857319299879845,
+            0.039898268348128825,
+            0.04070634646612478,
+            0.040779485638380165,
+            0.043574044402588406,
+            0.04405539140756498,
+            0.0443737575714687,
+            0.04591154167235687,
+            0.046180563097361044,
+            0.047594834411078576,
+            0.04830997613256701,
+            0.05296383629123952,
+            0.05732511053633073,
+            0.0663652422139566,
+            0.06659642815926069,
+            0.06673312259152493,
+            0.07364115364642859
+          ]
+        },
+        {
+          "metric": "abs_rank_icir",
+          "role": "quality_floor",
+          "quantile": 0.5,
+          "values": [
+            0.011604725787842548,
+            0.015451049401873706,
+            0.02296636025899055,
+            0.02554594084339621,
+            0.028319203312452895,
+            0.02853249755816396,
+            0.03365962586532823,
+            0.043072022049992574,
+            0.051818598960923466,
+            0.05524811128176701,
+            0.05700273077677173,
+            0.057729657458711864,
+            0.05833326122400854,
+            0.06322279417015846,
+            0.06597467198167595,
+            0.0722204628518712,
+            0.07245104118013906,
+            0.0740315958445357,
+            0.07426473167631331,
+            0.07661524615288774,
+            0.07939996325454053,
+            0.07971871156440385,
+            0.08132526667332166,
+            0.08504453227500587,
+            0.08736027997657889,
+            0.09412348378125517,
+            0.10341579629458836,
+            0.10396559807409846,
+            0.10490982743238338,
+            0.10905437608137182,
+            0.10979413428378901,
+            0.12143724302671248,
+            0.12246801518591034,
+            0.12348640974486454,
+            0.12400087166227901,
+            0.1278484420589559,
+            0.14260809006025102,
+            0.14462443120701385,
+            0.15046211987436425,
+            0.15735815506877046,
+            0.15908563770066755,
+            0.16442765199463413,
+            0.16686916441685454,
+            0.16784625906538128,
+            0.1753409900623113,
+            0.17975693177439309,
+            0.194082406625804,
+            0.19639618435751172,
+            0.19685272544529855,
+            0.19806445463991715,
+            0.20655121910529095,
+            0.2084426622068669,
+            0.2134075091436878,
+            0.21812958154629342,
+            0.22260332029497626,
+            0.22318062307120556,
+            0.22445196849869908,
+            0.22582541929387856,
+            0.22672930791506848,
+            0.22748789057560093,
+            0.2315658442790922,
+            0.24459223691198262,
+            0.2448993069581874,
+            0.24953820571117877,
+            0.25250297514642595,
+            0.26181485557333384,
+            0.26399655301216784,
+            0.2647626626553374,
+            0.27244971536365825,
+            0.27272527642557365,
+            0.2728789610127922,
+            0.27899257306777786,
+            0.28674169241125663,
+            0.29338233663205376,
+            0.3007571575965437,
+            0.33187829810303154,
+            0.33462317138745884,
+            0.3396386516751233,
+            0.34536746235339705,
+            0.36048907726341406,
+            0.37380990497232824,
+            0.37861995358086803,
+            0.3813421816853329,
+            0.40948558133942375,
+            0.46067465737578633,
+            0.46482380964241565,
+            0.470256820014107,
+            0.47101072184612724,
+            0.47322056353578484,
+            0.4737122827313,
+            0.48420900081650414,
+            0.4899899642299255,
+            0.5103337147648723,
+            0.5242803552796697,
+            0.5282203190828564,
+            0.5385954781846521,
+            0.5445034229304098,
+            0.5449992567125529,
+            0.5857973289315164,
+            0.5914462691991792,
+            0.6061724571726428,
+            0.6090924135701824,
+            0.6111164782799191,
+            0.6934673060935898,
+            0.7350030409110925,
+            0.7492295535342058,
+            0.7743090588116072
+          ]
+        },
+        {
+          "metric": "coverage",
+          "role": "coverage_floor",
+          "quantile": 0.25,
+          "values": [
+            0.15578333234437255,
+            0.15935791281365477,
+            0.16826106693564322,
+            0.5030927835051546,
+            0.6246299067681922,
+            0.6299025217885476,
+            0.6439304379078584,
+            0.6474226804123712,
+            0.794293845280929,
+            0.7985963625317523,
+            0.8153880399832721,
+            0.8175257731958763,
+            0.8175257731958763,
+            0.8175257731958763,
+            0.8350515463917526,
+            0.8846263747053343,
+            0.8879683727784504,
+            0.905084578299462,
+            0.9072164948453608,
+            0.9072164948453608,
+            0.9072164948453608,
+            0.9073217424602776,
+            0.911015503054809,
+            0.9112477295826226,
+            0.9112477295826226,
+            0.9382597332513442,
+            0.9389005518695526,
+            0.952766898244119,
+            0.9584989216843471,
+            0.9642967644925962,
+            0.9648297107020435,
+            0.9657945027480277,
+            0.9661397137321753,
+            0.966147835438624,
+            0.9663774427826535,
+            0.9663862134198382,
+            0.9667864215079601,
+            0.9668640049993967,
+            0.9671004183940467,
+            0.9672145122058144,
+            0.9673168098118013,
+            0.9673193677174075,
+            0.968149563794671,
+            0.96922880335352,
+            0.9700635020311674,
+            0.9807061338635917,
+            0.9807061338635917,
+            0.9807061338635917,
+            0.9807061338635917,
+            0.9807061338635917,
+            0.9807061338635917,
+            0.9807061338635917,
+            0.9807061338635917,
+            0.9807061338635917,
+            0.9807061338635917,
+            0.9807061338635917,
+            0.9807061338635917,
+            0.9807061338635917,
+            0.9807061338635917,
+            0.9807061338635917,
+            0.9807061338635917,
+            0.9807061338635917,
+            0.9807061338635917,
+            0.9807061338635917,
+            0.9807061338635917,
+            0.9807061338635917,
+            0.9867415560694335,
+            0.9905692748436062,
+            0.9937855894498933,
+            0.9937855894498933,
+            0.9937864453387508,
+            0.9952711169646498,
+            0.9968491974123453,
+            0.9969126451563124,
+            0.9969138628616251,
+            0.9969417676189039,
+            0.9969879265091858,
+            0.9970080437930491,
+            0.9971452852265038,
+            0.9973795471609117,
+            0.9984635816878109,
+            0.9997660525157482,
+            0.9997660525157482,
+            0.9997660525157482,
+            0.9997660525157482,
+            0.9997660525157482,
+            0.9997669175833289,
+            0.9997669175833289,
+            0.9997677734721866,
+            0.9997677734721866,
+            0.9997677734721866,
+            0.9999991441111422,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        {
+          "metric": "turnover",
+          "role": "risk_ceiling",
+          "quantile": 0.75,
+          "values": [
+            0.005854676498263966,
+            0.010728386717995555,
+            0.013687727690641553,
+            0.01605446015723466,
+            0.016462938449676102,
+            0.017192648768428274,
+            0.0211221863505065,
+            0.024572525312454734,
+            0.024753494983967405,
+            0.03453614637459257,
+            0.07468416327310133,
+            0.08539142258615463,
+            0.11378439876224496,
+            0.12038712147008018,
+            0.12911979512139973,
+            0.14079896208354253,
+            0.15768257384142098,
+            0.15788685415100795,
+            0.1641652586993873,
+            0.16484623291687683,
+            0.20648546740070348,
+            0.20734464899176158,
+            0.2110849120937049,
+            0.21289829058919202,
+            0.22065475407550683,
+            0.22522857593650278,
+            0.24695327297482433,
+            0.2489756145938508,
+            0.2550405704701541,
+            0.25978486330764106,
+            0.2700086181753416,
+            0.2729102773535622,
+            0.2855512666361571,
+            0.28831259590324854,
+            0.291691481538085,
+            0.3003921116015726,
+            0.30306536464795136,
+            0.3066559341928767,
+            0.3091935287995777,
+            0.31798187951909096,
+            0.3184582038697543,
+            0.3245120812967499,
+            0.3301683908399085,
+            0.33283333880410654,
+            0.3432441917788418,
+            0.3460595519350943,
+            0.36002282194509877,
+            0.3727756671201558,
+            0.37758934485851725,
+            0.3786729277741558,
+            0.41396808084536174,
+            0.45499353342915483,
+            0.4626809438011183,
+            0.4855373558833744,
+            0.48555708149880394,
+            0.48928545667584694,
+            0.4972228606305372,
+            0.5096667694329694,
+            0.510208460149331,
+            0.5162410022479212,
+            0.524319483154618,
+            0.5245515881986462,
+            0.5253476557439809,
+            0.5439914014138693,
+            0.5675625418991967,
+            0.5713297746730482,
+            0.5807797455949728,
+            0.5865092750502484,
+            0.6106892704071307,
+            0.6172025013131868,
+            0.6194259992942841,
+            0.638902639034207,
+            0.6522970248621478,
+            0.6694565773656362,
+            0.6695554357118799,
+            0.6705337040127953,
+            0.6759212633183959,
+            0.6936689477205165,
+            0.7071788815093746,
+            0.7272105702058929,
+            0.7614476844282765,
+            0.7694287163841684,
+            0.7772433755313982,
+            0.8117048848912541,
+            0.8363121880999793,
+            0.868045537747982,
+            0.8876008930863061,
+            0.9029086063143305,
+            0.9317379156097705,
+            0.9346128235346044,
+            0.9892465217706681,
+            1.0107485793427966,
+            1.0621953109892868,
+            1.0973365754025752,
+            1.2252873273122313,
+            1.3204120412161882,
+            1.369761819333228,
+            1.3753993558875268,
+            1.4123152807684118,
+            1.4192947342768705,
+            1.446447966282267,
+            1.4465004276833686,
+            1.4470845260198386,
+            1.4507601542661512,
+            1.501105460843953,
+            1.5259202636339522,
+            1.5291768296444213
+          ]
+        },
+        {
+          "metric": "abs_drawdown",
+          "role": "risk_ceiling",
+          "quantile": 0.75,
+          "values": [
+            0.026536177446872533,
+            0.02656303716001407,
+            0.02748548324069633,
+            0.033145967155088885,
+            0.03326572259538363,
+            0.03365122708319723,
+            0.03496738010265987,
+            0.036050908588113995,
+            0.03892470573975748,
+            0.04113303580152616,
+            0.04281312346865507,
+            0.04315051100373224,
+            0.043679266913678294,
+            0.043884491399933556,
+            0.04491206076579257,
+            0.04970794294256908,
+            0.050504414728924196,
+            0.051189621632765414,
+            0.0526553969330511,
+            0.05341485103842658,
+            0.05379096584929055,
+            0.0541286843067148,
+            0.05448205102266446,
+            0.057830626734841184,
+            0.0596140359260785,
+            0.05985928467774804,
+            0.06043345931764188,
+            0.06133734281454828,
+            0.061463285794657097,
+            0.06376650501667003,
+            0.06627422026554541,
+            0.06747177799725612,
+            0.06767270872654607,
+            0.06772746066009394,
+            0.06959870293494519,
+            0.06981824896715161,
+            0.0721056768673144,
+            0.07566925677055047,
+            0.0782906759691262,
+            0.07972894540382658,
+            0.07978529368464304,
+            0.08160947356077275,
+            0.08201131413288565,
+            0.08216503142501885,
+            0.08512167911060764,
+            0.08556156962863626,
+            0.09123935115988391,
+            0.09213565912123278,
+            0.094472670652342,
+            0.10010838667999666,
+            0.10059739862868722,
+            0.10113076080913597,
+            0.10376830170840756,
+            0.10512635681821014,
+            0.10699848955134239,
+            0.1081136308895897,
+            0.10986759183304118,
+            0.1109740564509396,
+            0.11434417419142162,
+            0.11867411755333035,
+            0.13265361971986134,
+            0.13331937959016904,
+            0.13358453564481354,
+            0.1362774723244704,
+            0.14124763374681315,
+            0.14315771217068884,
+            0.1435991661086229,
+            0.14954238645614915,
+            0.15013530821153065,
+            0.15175245501480683,
+            0.1566822879115708,
+            0.15713819557622044,
+            0.15816957287068067,
+            0.16056422019204641,
+            0.16381336046274808,
+            0.17533353683003217,
+            0.18079200369566673,
+            0.1832268742258104,
+            0.18817996297705353,
+            0.19704512817764397,
+            0.21907490786919748,
+            0.22227599262908448,
+            0.23676482091686435,
+            0.23920537788112006,
+            0.24635609690390603,
+            0.2472517231721313,
+            0.24985338007141933,
+            0.28746472687869906,
+            0.28905418003083305,
+            0.30270952900798975,
+            0.3770573253890416,
+            0.38637322663064055,
+            0.40421053851894473,
+            0.4141066754416489,
+            0.4425299733566094,
+            0.44499403035371965,
+            0.4565176525402761,
+            0.4630058336189071,
+            0.5684094007402978,
+            0.6411546515591513,
+            0.7046588778344911,
+            0.7106510626840321,
+            0.771693856572996,
+            0.7925992120968837,
+            0.8011296378490372,
+            0.9903329898780256,
+            0.9986237734290296
+          ]
+        },
+        {
+          "metric": "direction_adjusted_annualized_return",
+          "role": "quality_floor",
+          "quantile": 0.5,
+          "values": [
+            -1.5785857665615133,
+            -1.0835151157894736,
+            -0.44987392996108905,
+            -0.3562151351351356,
+            -0.3215955489989465,
+            -0.31088334811530005,
+            -0.19155921766561523,
+            -0.17087322397476298,
+            -0.12240813880126186,
+            -0.11424036521739134,
+            -0.10867003154574148,
+            -0.10831097791798125,
+            -0.09958937404580154,
+            -0.06872295652173907,
+            -0.06706824657534224,
+            -0.06500191304347822,
+            -0.06059473817034695,
+            -0.05603439483870952,
+            -0.05203565217391308,
+            -0.04574945454545457,
+            -0.041253995633187816,
+            -0.03539763485477183,
+            -0.015092706624605675,
+            -0.007488189274447953,
+            -0.004721818181818087,
+            -0.0011942608695652427,
+            0.0006286956521739083,
+            0.006476744479495285,
+            0.008287826086956522,
+            0.008399478260869581,
+            0.010422035928143735,
+            0.01370816403785488,
+            0.024487413861386125,
+            0.02781547826086952,
+            0.029352302839116717,
+            0.031238725552050463,
+            0.03136423943661977,
+            0.03374921739130431,
+            0.03432573913043479,
+            0.03914660869565217,
+            0.04531203785488963,
+            0.04915987381703473,
+            0.049572521739130446,
+            0.05029347634069399,
+            0.05039060869565212,
+            0.051788869565217395,
+            0.05184468292682928,
+            0.06123149526813883,
+            0.062144869565217434,
+            0.06446817391304345,
+            0.07293272106261862,
+            0.07491547826086956,
+            0.07541895652173909,
+            0.07612799999999995,
+            0.07937321739130425,
+            0.08105438172920057,
+            0.08179887483870985,
+            0.090475304347826,
+            0.09391043478260855,
+            0.10191629268292692,
+            0.1157457391304348,
+            0.11854486956521743,
+            0.12740243478260876,
+            0.1329204255319149,
+            0.13860852431289641,
+            0.13976549999999988,
+            0.14217182608695667,
+            0.14707460869565217,
+            0.1489267826086956,
+            0.15397200000000016,
+            0.15482660869565226,
+            0.15621860869565218,
+            0.15837850570962475,
+            0.15876544709897628,
+            0.16055894290375222,
+            0.16218394838709677,
+            0.1689352722580645,
+            0.17283495652173944,
+            0.17630765217391325,
+            0.1927518260869565,
+            0.2006880750000001,
+            0.20194713636363643,
+            0.2089281951219514,
+            0.2217360000000003,
+            0.2227523253588517,
+            0.2244594782608697,
+            0.22474633263157942,
+            0.23476747826086958,
+            0.23524226086956526,
+            0.25266730434782636,
+            0.2682146086956521,
+            0.2686669090909091,
+            0.2761583414634149,
+            0.30149791304347795,
+            0.3143780869565216,
+            0.3148376589473682,
+            0.31704730105263196,
+            0.3277214905263156,
+            0.3336391304347821,
+            0.35607925161290327,
+            0.3755462608695656,
+            0.4091004473684211,
+            0.40937373913043484,
+            0.45732641684210457,
+            0.49375570044052847,
+            0.5052522992623816,
+            0.606411652173913
+          ]
+        },
+        {
+          "metric": "direction_adjusted_sharpe",
+          "role": "quality_floor",
+          "quantile": 0.5,
+          "values": [
+            -5.411111092854797,
+            -4.489447722529202,
+            -4.104679135929607,
+            -2.5369642143352302,
+            -1.7561617503915659,
+            -1.1796996176080947,
+            -1.0679101060448812,
+            -1.063562163030114,
+            -0.9966291563998108,
+            -0.9069688187068383,
+            -0.8336357269146598,
+            -0.823476248317728,
+            -0.6445250104379867,
+            -0.6002932521165183,
+            -0.5754718464110843,
+            -0.4439037991381543,
+            -0.4260250038331876,
+            -0.41807102799051626,
+            -0.2838046067536838,
+            -0.26229477877050356,
+            -0.2600883936118157,
+            -0.25876957421076957,
+            -0.250553765842761,
+            -0.060610321775522946,
+            -0.02664242871637242,
+            -0.013930070268359279,
+            0.008892371898453258,
+            0.06336349257673776,
+            0.07725433106011514,
+            0.08111300073220501,
+            0.11960142553259512,
+            0.1585685241689344,
+            0.19668958595617048,
+            0.27504450668994984,
+            0.31184038473898895,
+            0.3617769316907282,
+            0.37394610447539167,
+            0.4296813486166384,
+            0.43564296884059034,
+            0.4478809769822306,
+            0.4534785420507437,
+            0.5252534647533664,
+            0.6061190392320428,
+            0.6128578879924483,
+            0.6128587590496853,
+            0.6438019914550537,
+            0.6770712208672237,
+            0.7385927023920481,
+            0.8679470088988875,
+            0.8917376173377051,
+            0.9308365870432211,
+            1.0248467202917484,
+            1.0256245045722612,
+            1.0424528184579693,
+            1.0972050939694158,
+            1.1276747193984578,
+            1.14206911734906,
+            1.1527606351465869,
+            1.1837858885205501,
+            1.1950570507329816,
+            1.24320395263052,
+            1.286688853530186,
+            1.3076875960788519,
+            1.3269297988055668,
+            1.382691346186211,
+            1.5214628472284417,
+            1.5459373063464699,
+            1.5708120725679062,
+            1.5908442509561491,
+            1.6536628470746897,
+            1.7123976979193463,
+            1.766592310778338,
+            1.8231237975789103,
+            1.8634240058564573,
+            1.9195843360614024,
+            1.920818832332822,
+            1.9794788074143457,
+            1.982785451607594,
+            1.9917217189266614,
+            2.07243356586798,
+            2.0984939788682917,
+            2.1059792521732086,
+            2.143446334918066,
+            2.2079592149607676,
+            2.2528701308475267,
+            2.3023903050331738,
+            2.3868290696079484,
+            2.396954342684299,
+            2.4485218757802256,
+            2.4836073990070773,
+            2.5571776785834532,
+            2.5743292013773793,
+            2.5766211565105297,
+            2.5865199150692386,
+            2.616032158835137,
+            2.708565719871469,
+            2.921900077019796,
+            2.961265766527686,
+            3.436507605833206,
+            3.543319571916135,
+            3.5638197710835278,
+            3.9578982317024387,
+            4.251837872932391,
+            4.413144797218127,
+            5.031332782914635,
+            5.1288804089451405,
+            5.25192237763864
+          ]
+        },
+        {
+          "metric": "observations",
+          "role": "coverage_floor",
+          "quantile": 0.25,
+          "values": [
+            146.0,
+            152.0,
+            152.0,
+            154.0,
+            160.0,
+            227.0,
+            230.0,
+            231.0,
+            257.0,
+            259.0,
+            284.0,
+            329.0,
+            393.0,
+            473.0,
+            482.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            483.0,
+            501.0,
+            505.0,
+            527.0,
+            613.0,
+            613.0,
+            613.0,
+            627.0,
+            775.0,
+            775.0,
+            775.0,
+            775.0,
+            775.0,
+            792.0,
+            792.0,
+            861.0,
+            861.0,
+            861.0,
+            861.0,
+            861.0,
+            879.0,
+            902.0,
+            916.0,
+            949.0,
+            949.0,
+            950.0,
+            950.0,
+            950.0,
+            950.0,
+            950.0,
+            950.0,
+            951.0,
+            951.0,
+            951.0,
+            951.0,
+            951.0,
+            951.0,
+            951.0,
+            951.0,
+            951.0,
+            951.0,
+            951.0,
+            951.0,
+            951.0,
+            951.0,
+            951.0,
+            951.0,
+            951.0
+          ]
+        },
+        {
+          "metric": "valid_years",
+          "role": "annual_rule",
+          "quantile": 0.5,
+          "values": [
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0
+          ]
+        },
+        {
+          "metric": "matching_sign_years",
+          "role": "annual_rule",
+          "quantile": 0.5,
+          "values": [
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0
+          ]
+        }
+      ],
+      "exclusions": [
+        {
+          "name": "fund_book_to_market_pit",
+          "reason": "empty_panel_in_window",
+          "detail": "empty_panel_in_window"
+        },
+        {
+          "name": "fund_book_to_price",
+          "reason": "empty_panel_in_window",
+          "detail": "empty_panel_in_window"
+        },
+        {
+          "name": "fund_cash_income_stability",
+          "reason": "insufficient_observations",
+          "detail": "observations=0"
+        },
+        {
+          "name": "fund_cashflow_stability",
+          "reason": "insufficient_observations",
+          "detail": "observations=0"
+        },
+        {
+          "name": "fund_roa_stability",
+          "reason": "insufficient_observations",
+          "detail": "observations=0"
+        },
+        {
+          "name": "fund_roe_stability",
+          "reason": "insufficient_observations",
+          "detail": "observations=0"
+        },
+        {
+          "name": "pv_reversal_20",
+          "reason": "empty_panel_in_window",
+          "detail": "empty_panel_in_window"
+        },
+        {
+          "name": "short_term_reversal",
+          "reason": "empty_panel_in_window",
+          "detail": "empty_panel_in_window"
+        }
+      ],
+      "cluster_profile": "spread",
+      "correlation_threshold": 0.88,
+      "min_overlap": 100,
+      "sample": {
+        "total_inputs": 326,
+        "valid": 318,
+        "excluded": 8,
+        "cluster_count": 107,
+        "representative_count": 107,
+        "source_dirs": [
+          "G:/gf_quant_agent/alpha158",
+          "G:/gf_quant_agent/artifacts"
+        ],
+        "exclusion_rule": {
+          "min_observations": 100,
+          "min_valid_years": 2,
+          "min_profile_observations": 100
+        },
+        "min_sample_for_standard": 10,
+        "standards_sample_sizes": {
+          "abs_rank_ic": 318,
+          "abs_rank_icir": 318,
+          "direction_adjusted_annualized_return": 318,
+          "direction_adjusted_sharpe": 318
+        }
+      },
+      "quantile_policy": {
+        "quality_floor_quantile": 0.5,
+        "coverage_floor_quantile": 0.25,
+        "risk_ceiling_quantile": 0.75,
+        "annual_integer_rule": "floor_of_cluster_balanced_median",
+        "weighting": "inverse_cluster (1 / (cluster_size * cluster_count))"
+      }
+    },
+    "fundamental": {
+      "standards": {
+        "family": "fundamental",
+        "min_abs_rank_ic": 0.005892335813335683,
+        "min_abs_rank_icir": 0.08545040775607804,
+        "min_coverage": 0.9774428346089503,
+        "max_turnover": 0.020149263371020586,
+        "max_abs_drawdown": 0.20112407307390884,
+        "min_observations": 969,
+        "annual_min_valid_years": 4,
+        "annual_min_matching_sign_years": 3,
+        "min_direction_adjusted_annualized_return": 0.024824674014447903,
+        "min_direction_adjusted_sharpe": 0.39049688274145866
+      },
+      "clusters": [
+        {
+          "cluster_id": 0,
+          "representative": "book_value_per_share_lf",
+          "members": [
+            "book_value_per_share_lf",
+            "cash_equivalent_per_share_lf",
+            "du_profit_margin_lf",
+            "du_return_on_equity_lf",
+            "earnings_per_share_basic_lf",
+            "earnings_per_share_diluted_lf",
+            "ebit_to_revenue_lf",
+            "ebitda_to_debt_lf",
+            "inc_revenue_lf",
+            "net_asset_growth_ratio_lf",
+            "net_profit_growth_ratio_lf",
+            "net_profit_margin_lf",
+            "net_profit_parent_company_growth_ratio_lf",
+            "net_profit_to_revenue_lf",
+            "operating_profit_growth_ratio_lf",
+            "operating_revenue_growth_ratio_lf",
+            "profit_from_operation_to_revenue_lf",
+            "retained_earnings_per_share_lf",
+            "return_on_asset_lf",
+            "return_on_asset_net_profit_lf",
+            "return_on_equity_diluted_lf",
+            "return_on_equity_lf",
+            "return_on_invested_capital_lf",
+            "time_interest_earned_ratio_lf",
+            "total_asset_growth_ratio_lf",
+            "total_profit_growth_ratio_lf",
+            "undistributed_profit_per_share_lf"
+          ],
+          "size": 27
+        },
+        {
+          "cluster_id": 1,
+          "representative": "book_leverage_lf",
+          "members": [
+            "book_leverage_lf",
+            "capital_to_equity_ratio_lf",
+            "cash_ratio_lf",
+            "current_ratio_lf",
+            "debt_to_asset_ratio_lf",
+            "debt_to_equity_ratio_legacy_lf",
+            "debt_to_equity_ratio_lf",
+            "du_equity_multiplier_lf",
+            "equity_multiplier_lf",
+            "equity_ratio_lf",
+            "equity_to_debt_ratio_lf",
+            "equity_to_interest_bearing_debt_lf",
+            "finance_expense_to_revenue_lf",
+            "interest_bearing_debt_to_capital_lf",
+            "market_leverage_lf",
+            "net_working_capital_lf",
+            "quick_ratio_lf",
+            "rd_expense_to_revenue_lf",
+            "super_quick_ratio_lf"
+          ],
+          "size": 19
+        },
+        {
+          "cluster_id": 2,
+          "representative": "a_share_market_val_in_circulation",
+          "members": [
+            "a_share_market_val_in_circulation",
+            "ebit_lf",
+            "ebitda_lf",
+            "ev_lf",
+            "ev_no_cash_lf",
+            "income_from_main_operations_lf",
+            "market_cap",
+            "market_cap_2",
+            "market_cap_3",
+            "retained_earnings_lf"
+          ],
+          "size": 10
+        },
+        {
+          "cluster_id": 3,
+          "representative": "cash_conversion_cycle_lf",
+          "members": [
+            "cash_conversion_cycle_lf",
+            "inventory_turnover_days_lf",
+            "inventory_turnover_lf",
+            "operating_cycle_lf"
+          ],
+          "size": 4
+        },
+        {
+          "cluster_id": 4,
+          "representative": "cash_flow_ratio_lf",
+          "members": [
+            "cash_flow_ratio_lf",
+            "ocf_to_current_ratio_lf",
+            "ocf_to_debt_lf",
+            "operating_cash_flow_per_share_lf"
+          ],
+          "size": 4
+        },
+        {
+          "cluster_id": 5,
+          "representative": "account_payable_turnover_days_lf",
+          "members": [
+            "account_payable_turnover_days_lf",
+            "account_payable_turnover_rate_lf",
+            "average_payment_period_lf"
+          ],
+          "size": 3
+        },
+        {
+          "cluster_id": 6,
+          "representative": "book_to_market_ratio_lf",
+          "members": [
+            "book_to_market_ratio_lf",
+            "pb_ratio_lf",
+            "ps_ratio_ttm"
+          ],
+          "size": 3
+        },
+        {
+          "cluster_id": 7,
+          "representative": "interest_bearing_debt_lf",
+          "members": [
+            "interest_bearing_debt_lf",
+            "invested_capital_lf",
+            "net_debt_lf"
+          ],
+          "size": 3
+        },
+        {
+          "cluster_id": 8,
+          "representative": "account_receivable_turnover_days_lf",
+          "members": [
+            "account_receivable_turnover_days_lf",
+            "account_receivable_turnover_rate_lf"
+          ],
+          "size": 2
+        },
+        {
+          "cluster_id": 9,
+          "representative": "cost_to_sales_lf",
+          "members": [
+            "cost_to_sales_lf",
+            "gross_profit_margin_lf"
+          ],
+          "size": 2
+        },
+        {
+          "cluster_id": 10,
+          "representative": "current_asset_to_total_asset_lf",
+          "members": [
+            "current_asset_to_total_asset_lf",
+            "non_current_asset_to_total_asset_lf"
+          ],
+          "size": 2
+        },
+        {
+          "cluster_id": 11,
+          "representative": "current_debt_to_total_debt_lf",
+          "members": [
+            "current_debt_to_total_debt_lf",
+            "non_current_debt_to_total_debt_lf"
+          ],
+          "size": 2
+        },
+        {
+          "cluster_id": 12,
+          "representative": "equity_fixed_asset_ratio_lf",
+          "members": [
+            "equity_fixed_asset_ratio_lf",
+            "fixed_asset_ratio_lf"
+          ],
+          "size": 2
+        },
+        {
+          "cluster_id": 13,
+          "representative": "non_operating_profit_to_profit_before_tax_lf",
+          "members": [
+            "non_operating_profit_to_profit_before_tax_lf",
+            "operating_profit_to_profit_before_tax_lf"
+          ],
+          "size": 2
+        },
+        {
+          "cluster_id": 14,
+          "representative": "admin_expense_to_revenue_lf",
+          "members": [
+            "admin_expense_to_revenue_lf"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 15,
+          "representative": "capital_reserve_per_share_lf",
+          "members": [
+            "capital_reserve_per_share_lf"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 16,
+          "representative": "cash_flow_per_share_lf",
+          "members": [
+            "cash_flow_per_share_lf"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 17,
+          "representative": "current_asset_turnover_lf",
+          "members": [
+            "current_asset_turnover_lf"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 18,
+          "representative": "depreciation_and_amortization_lf",
+          "members": [
+            "depreciation_and_amortization_lf"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 19,
+          "representative": "depreciation_per_share_lf",
+          "members": [
+            "depreciation_per_share_lf"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 20,
+          "representative": "earned_reserve_per_share_lf",
+          "members": [
+            "earned_reserve_per_share_lf"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 21,
+          "representative": "equity_turnover_ratio_lf",
+          "members": [
+            "equity_turnover_ratio_lf"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 22,
+          "representative": "expense_to_revenue_lf",
+          "members": [
+            "expense_to_revenue_lf"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 23,
+          "representative": "fixed_asset_turnover_lf",
+          "members": [
+            "fixed_asset_turnover_lf"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 24,
+          "representative": "income_tax_to_profit_before_tax_lf",
+          "members": [
+            "income_tax_to_profit_before_tax_lf"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 25,
+          "representative": "intangible_asset_ratio_lf",
+          "members": [
+            "intangible_asset_ratio_lf"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 26,
+          "representative": "investment_profit_to_profit_before_tax_lf",
+          "members": [
+            "investment_profit_to_profit_before_tax_lf"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 27,
+          "representative": "liabilities_per_share_lf",
+          "members": [
+            "liabilities_per_share_lf"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 28,
+          "representative": "long_term_debt_to_working_capital_lf",
+          "members": [
+            "long_term_debt_to_working_capital_lf"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 29,
+          "representative": "net_financing_cash_flow_growth_ratio_lf",
+          "members": [
+            "net_financing_cash_flow_growth_ratio_lf"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 30,
+          "representative": "net_investing_cash_flow_growth_ratio_lf",
+          "members": [
+            "net_investing_cash_flow_growth_ratio_lf"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 31,
+          "representative": "net_operate_cash_flow_growth_ratio_lf",
+          "members": [
+            "net_operate_cash_flow_growth_ratio_lf"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 32,
+          "representative": "ocf_to_interest_bearing_debt_lf",
+          "members": [
+            "ocf_to_interest_bearing_debt_lf"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 33,
+          "representative": "ocf_to_net_debt_lf",
+          "members": [
+            "ocf_to_net_debt_lf"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 34,
+          "representative": "pe_ratio_ttm",
+          "members": [
+            "pe_ratio_ttm"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 35,
+          "representative": "selling_expense_to_revenue_lf",
+          "members": [
+            "selling_expense_to_revenue_lf"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 36,
+          "representative": "surplus_cash_protection_multiples_lf",
+          "members": [
+            "surplus_cash_protection_multiples_lf"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 37,
+          "representative": "tangible_asset_per_share_lf",
+          "members": [
+            "tangible_asset_per_share_lf"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 38,
+          "representative": "total_asset_turnover_lf",
+          "members": [
+            "total_asset_turnover_lf"
+          ],
+          "size": 1
+        },
+        {
+          "cluster_id": 39,
+          "representative": "working_capital_lf",
+          "members": [
+            "working_capital_lf"
+          ],
+          "size": 1
+        }
+      ],
+      "distributions": [
+        {
+          "metric": "abs_rank_ic",
+          "role": "quality_floor",
+          "quantile": 0.5,
+          "values": [
+            0.00013275380544905185,
+            0.0004648296162136615,
+            0.00046809686320093894,
+            0.0009480991459331825,
+            0.0015884511912693674,
+            0.0016959581775724585,
+            0.0017616252162172806,
+            0.0029501140154228485,
+            0.002979308103600351,
+            0.0030169519854589973,
+            0.00304810844053701,
+            0.003434525479120822,
+            0.0035005738626488953,
+            0.003679111989936684,
+            0.004185136235007508,
+            0.004535165899663663,
+            0.004536067253600556,
+            0.004559582812942495,
+            0.005050098603190684,
+            0.0050508197353320685,
+            0.006017342897069475,
+            0.006776040339696134,
+            0.007397810787941395,
+            0.00795179710691989,
+            0.008139169859823821,
+            0.008398550204041264,
+            0.008734538336242057,
+            0.008773768707333691,
+            0.009511800488944433,
+            0.009849040830210288,
+            0.010013999003950122,
+            0.010033952300785881,
+            0.010106699407135591,
+            0.011217165649914825,
+            0.011285371120354916,
+            0.011838679830334582,
+            0.011844964941043189,
+            0.014064960108928751,
+            0.028696141412346485,
+            0.04745681542700887
+          ]
+        },
+        {
+          "metric": "abs_rank_icir",
+          "role": "quality_floor",
+          "quantile": 0.5,
+          "values": [
+            0.0014079322442074526,
+            0.0052463086441376155,
+            0.005271592283289098,
+            0.017358139810284095,
+            0.020487663562575177,
+            0.021507799514255264,
+            0.02428946762227764,
+            0.03523061781383002,
+            0.04119808448578603,
+            0.04882674065661474,
+            0.0516992876488721,
+            0.05522653752063385,
+            0.05918217829396827,
+            0.06236198925669589,
+            0.06751132114296203,
+            0.0732512747774935,
+            0.07380120677137723,
+            0.07390830297188362,
+            0.07780783856965523,
+            0.08025554188258671,
+            0.08388891608928611,
+            0.09195249282033507,
+            0.09430498604983076,
+            0.10420661270158055,
+            0.12509287626772692,
+            0.12558917400135616,
+            0.12810995272645345,
+            0.1295113770702017,
+            0.13308068926909933,
+            0.1377522824205884,
+            0.16941676478563564,
+            0.18135418880541693,
+            0.1883463256805292,
+            0.18862751466374647,
+            0.19058442149113788,
+            0.20373607159907356,
+            0.212172484790731,
+            0.2170113614709943,
+            0.2289770828550271,
+            0.29774012006942474
+          ]
+        },
+        {
+          "metric": "coverage",
+          "role": "coverage_floor",
+          "quantile": 0.25,
+          "values": [
+            0.38051249918677105,
+            0.38051249918677105,
+            0.3806055609694843,
+            0.7289757773729767,
+            0.8190377144544935,
+            0.9360937428461505,
+            0.9566375834925702,
+            0.9630969559278433,
+            0.9633936664257245,
+            0.9783093453751927,
+            0.9783100155232876,
+            0.9822703816061894,
+            0.9823133340312523,
+            0.982550675542832,
+            0.9835001486341924,
+            0.9840518056927517,
+            0.9893852711344141,
+            0.989428223559477,
+            0.989428223559477,
+            0.989428223559477,
+            0.990489875897333,
+            0.9923805655638283,
+            0.9927760071871395,
+            0.9949150911097547,
+            0.9971945815048275,
+            0.9981890765798176,
+            0.9993630028796645,
+            0.9999293929510287,
+            0.999957047574937,
+            0.999957047574937,
+            0.999957047574937,
+            0.9999772012063385,
+            0.9999993298519051,
+            0.9999993298519051,
+            0.9999993298519051,
+            0.9999993298519051,
+            0.9999993298519051,
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        {
+          "metric": "turnover",
+          "role": "risk_ceiling",
+          "quantile": 0.75,
+          "values": [
+            0.0031582627997412236,
+            0.003936892579707291,
+            0.004124570171127474,
+            0.004489986440682478,
+            0.004524916016819008,
+            0.004525259720708565,
+            0.004731538764216906,
+            0.004974680540513171,
+            0.005022446686365595,
+            0.005149366287112721,
+            0.005240875982281442,
+            0.005624147429779982,
+            0.005692446152494667,
+            0.006042968880939736,
+            0.006449431831216921,
+            0.007238867678068611,
+            0.007442306133854806,
+            0.007475011695861896,
+            0.008328324209748007,
+            0.00855044331582025,
+            0.008738642002437553,
+            0.012712362118977708,
+            0.013697651628225919,
+            0.014948885828288372,
+            0.015537885267563055,
+            0.016381776152146664,
+            0.018277750929605777,
+            0.018503504126898537,
+            0.018530639872857652,
+            0.019123452054944323,
+            0.02002937773600175,
+            0.020553148347740923,
+            0.02124624744767168,
+            0.023507601552271648,
+            0.024288084419513935,
+            0.025144297308798785,
+            0.02824109784943576,
+            0.02870456510572353,
+            0.03449282668900077,
+            0.03528808153788237
+          ]
+        },
+        {
+          "metric": "abs_drawdown",
+          "role": "risk_ceiling",
+          "quantile": 0.75,
+          "values": [
+            0.03666803308066946,
+            0.04826980366993394,
+            0.05717512574174699,
+            0.058610957742937564,
+            0.05937916929250864,
+            0.06698374903033633,
+            0.07760640896136906,
+            0.082369404428558,
+            0.09761251705646679,
+            0.0982773774599972,
+            0.10349826151489028,
+            0.1176909658981985,
+            0.11836847050367061,
+            0.12089187979220128,
+            0.12169324926869063,
+            0.12194002188432818,
+            0.12448399020688317,
+            0.12454625507826733,
+            0.13241553789132132,
+            0.14608907977661922,
+            0.1464974324542312,
+            0.15028699977499016,
+            0.15737361072915002,
+            0.16267197946199607,
+            0.16465255781631127,
+            0.1819605557560291,
+            0.18959760477185217,
+            0.19459736138599748,
+            0.19602377365483004,
+            0.21283738044150946,
+            0.2198788384692325,
+            0.2239946335620795,
+            0.237731009684241,
+            0.26086724382049997,
+            0.26551590858402274,
+            0.27142119696683864,
+            0.2734494450457813,
+            0.27654142451905395,
+            0.27969772899885137,
+            0.2862182772092762
+          ]
+        },
+        {
+          "metric": "direction_adjusted_annualized_return",
+          "role": "quality_floor",
+          "quantile": 0.5,
+          "values": [
+            -0.041296012383900946,
+            -0.02534355417956656,
+            -0.024710303405572735,
+            -0.01184400000000002,
+            -0.01045734984520124,
+            -0.009297733746129952,
+            -0.0059863653250773734,
+            -0.0024919133126934862,
+            0.00022729411764708268,
+            0.0007354551083591856,
+            0.004041882352941178,
+            0.007298377708978333,
+            0.012404693498452019,
+            0.01354350464396287,
+            0.014031900928792583,
+            0.014650848297213616,
+            0.015997448916408693,
+            0.018456594427244614,
+            0.019607628482972112,
+            0.02274527554179567,
+            0.025082452012383936,
+            0.028862452012383924,
+            0.031831058823529434,
+            0.03192442105263165,
+            0.033322773993808064,
+            0.03701435294117648,
+            0.03866002476780191,
+            0.04002092879256961,
+            0.04513712693498453,
+            0.04918889164086689,
+            0.05060336842105258,
+            0.05166884210526334,
+            0.05708697213622284,
+            0.06569892260061912,
+            0.07013219814241495,
+            0.07177136842105261,
+            0.07575291640866873,
+            0.08190962229102165,
+            0.1273400990712074,
+            0.14603621052631569
+          ]
+        },
+        {
+          "metric": "direction_adjusted_sharpe",
+          "role": "quality_floor",
+          "quantile": 0.5,
+          "values": [
+            -0.4664357435262271,
+            -0.3736398287579186,
+            -0.2672008773298867,
+            -0.1321428758473838,
+            -0.12433895786286463,
+            -0.09282541214382461,
+            -0.07168174474465155,
+            -0.05244648992994853,
+            0.005669404968690456,
+            0.00662889845654376,
+            0.04067911722838501,
+            0.18383695205735814,
+            0.2095670210964929,
+            0.21029952734003732,
+            0.22315843013968858,
+            0.23532462806154256,
+            0.25856458794493314,
+            0.3027929966738862,
+            0.318908854176605,
+            0.39011328785857535,
+            0.40093855852013616,
+            0.40432001981106186,
+            0.5391809091347497,
+            0.5486432071577368,
+            0.5718803090731877,
+            0.5768709401886801,
+            0.5830866054865491,
+            0.6125334900826767,
+            0.617399613071685,
+            0.6339142899558938,
+            0.7219969886605372,
+            0.7876088384579147,
+            0.832885545101486,
+            0.8410934509152544,
+            0.9135246669646283,
+            0.9313330945913305,
+            0.9364525341758454,
+            1.1225706438324696,
+            1.2889919675502064,
+            1.386617459199684
+          ]
+        },
+        {
+          "metric": "observations",
+          "role": "coverage_floor",
+          "quantile": 0.25,
+          "values": [
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0,
+            969.0
+          ]
+        },
+        {
+          "metric": "valid_years",
+          "role": "annual_rule",
+          "quantile": 0.5,
+          "values": [
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0
+          ]
+        },
+        {
+          "metric": "matching_sign_years",
+          "role": "annual_rule",
+          "quantile": 0.5,
+          "values": [
+            1.0,
+            1.0,
+            1.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            3.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0,
+            4.0
+          ]
+        }
+      ],
+      "exclusions": [],
+      "cluster_profile": "spread",
+      "correlation_threshold": 0.88,
+      "min_overlap": 100,
+      "sample": {
+        "total_inputs": 111,
+        "valid": 111,
+        "excluded": 0,
+        "cluster_count": 40,
+        "representative_count": 40,
+        "source_dirs": [
+          "G:/gf_quant_agent/basic_fundamental"
+        ],
+        "exclusion_rule": {
+          "min_observations": 100,
+          "min_valid_years": 2,
+          "min_profile_observations": 100
+        },
+        "min_sample_for_standard": 10,
+        "standards_sample_sizes": {
+          "abs_rank_ic": 111,
+          "abs_rank_icir": 111,
+          "direction_adjusted_annualized_return": 111,
+          "direction_adjusted_sharpe": 111
+        }
+      },
+      "quantile_policy": {
+        "quality_floor_quantile": 0.5,
+        "coverage_floor_quantile": 0.25,
+        "risk_ceiling_quantile": 0.75,
+        "annual_integer_rule": "floor_of_cluster_balanced_median",
+        "weighting": "inverse_cluster (1 / (cluster_size * cluster_count))"
+      }
+    }
+  }
+}

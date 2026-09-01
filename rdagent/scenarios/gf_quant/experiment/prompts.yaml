@@ -13,13 +13,42 @@ gf_factor_background: |-
 gf_factor_source_data: |-
   Remote root: G:/base.
   Direct fields: adjclose, adjopen, adjhigh, adjlow, amount, volume, turnover,
-  mv, fmv, pb, pe, ps, close, open, high, low, yclose, floatshare, totalshare.
+  mv, fmv, pb, pe, ps, close, open, high, low, yclose, floatshare, totalshare,
+  and categorical industry. The industry panel is CITIC level 1, built from
+  industry_ci.parquet effective-date intervals using mainland CI codes; CIHK
+  mirror classifications are excluded.
   Point-in-time financial fields use ``table__factor`` names, for example
   balance__parent_equity, balance__total_assets, income__net_profit, and
   cashflow__net_oper_cash_flow. Available tables are balance, income, cashflow.
-  Safe functions: cs_rank(x), delay(x,n), delta(x,n), pct_change(x,n),
-  signed_log(x), ts_mean(x,n), ts_std(x,n), winsorize(x,p), plus numeric
-  arithmetic +, -, *, /, ** and parentheses.
+  Safe operators, grouped:
+  - Rolling statistics: ts_mean(x,n), ts_std(x,n), ts_sum(x,n), ts_min(x,n),
+    ts_max(x,n), ts_median(x,n), ts_mad(x,n), ts_skew(x,n), ts_kurt(x,n),
+    ts_slope(x,n), ts_residual(x,n), ts_upside_std(x,n),
+    ts_downside_std(x,n), ts_above_mean(x,n),
+    ts_quantile(x,n,q) with q strictly inside (0, 1).
+  - Rolling normalisation and position: ts_zscore(x,n), ts_rank(x,n),
+    ts_decay_linear(x,n), ts_ewm(x,n), ts_argmax(x,n), ts_argmin(x,n).
+  - Lagged change: delay(x,n), delta(x,n), pct_change(x,n).
+  - Directed financial: Self(x), YOY(x), QOQ(x), YOYOQOQ(x), Delta(x),
+    YOYChange(x,k), CAGR(x,n),
+    SUD(x) or SUD(x,8), IndusProp(x,industry), DeltaProp(x,industry),
+    A2B(a,b), PercentileA2B(a,b), RegA2B(a,b), DeltaA2B(a,b),
+    YOYA_YOYB(a,b) (display name YOYA-YOYB), DeltaRegA2B(a,b).
+  - Two-panel rolling: ts_corr(x,y,n), ts_cov(x,y,n) between two fields.
+  - Cross-sectional: cs_rank(x), cs_zscore(x), cs_demean(x), cs_scale(x),
+    cs_industry_rank(x,industry), cs_industry_demean(x,industry),
+    cs_industry_zscore(x,industry), cs_zscore_mad(x).
+  - Robust transforms: signed_log(x), winsorize(x,p) with p in (0, 0.5).
+  - Elementwise math: abs(x), log(x), sqrt(x), sign(x), inverse(x),
+    clip(x,lo,hi); log needs positive values, sqrt accepts non-negative values,
+    inverse(x) is 1/x, and clip bounds are numeric literals with lo < hi.
+  Plus numeric arithmetic +, -, *, /, ** and parentheses. Windows n and shifts
+  must be positive integer literals and p a numeric literal. ts_argmax and
+  ts_argmin return whole days since the extreme, 0 meaning today.
+  YOY/QOQ/YOYOQOQ/YOYChange/CAGR/Delta/SUD and Delta-based compound operators take raw
+  table__factor inputs, align by accounting report quarter, and expose a value
+  only from announcement dt. IndusProp/DeltaProp use the CITIC level-1 industry
+  panel described above.
 
 gf_factor_hypothesis_specification: |-
   1. Propose 1-3 simple, causal, testable factors per round.
@@ -66,8 +95,25 @@ gf_factor_interface: |-
 
 gf_factor_strategy: |-
   Prefer interpretable expressions with modest lookbacks. Avoid division by an
-  unstable raw denominator; stabilize or rank when appropriate. Use announcement
-  dates for financial data and never introduce a forward-looking transformation.
+  unstable raw denominator; stabilize with signed_log, winsorize, or a rank or
+  z-score (cs_rank, cs_zscore, ts_zscore) when appropriate. Two-panel operators
+  such as ts_corr need both fields to be populated on the same days. Use
+  announcement dates for financial data and never introduce a forward-looking
+  transformation.
+
+gf_factor_acceptance_standards: |-
+  Candidates are not judged against hand-picked constants. Each family
+  (price_volume = artifacts + alpha158 pool, fundamental = basic_fundamental
+  pool) has numeric acceptance standards calibrated from the empirical
+  distribution of the benchmark factors in that same family, clustered by
+  absolute daily-profile correlation so near-identical benchmarks cannot
+  dominate. Standards cover absolute RankIC / RankICIR, coverage, turnover,
+  drawdown, observation count and per-year RankIC stability, and every
+  return/risk comparison is direction-adjusted to the factor's own orientation.
+  Rejection feedback reports the failing gates and the candidate's percentile
+  inside the family benchmark distribution, so aim for benchmarks that are
+  genuinely different from, and stronger than, the existing pool rather than
+  minor variations.
 
 gf_factor_output_format: |-
   The remote evaluator returns JSON metrics including IC, ICIR, Rank_IC,
@@ -76,7 +122,7 @@ gf_factor_output_format: |-
   and checksum. The RDLoop stores these metrics in the experiment trace.
 
 gf_factor_simulator: |-
-  The safe expression is evaluated remotely on 2022-01-01 through 2023-12-31
+  The safe expression is evaluated remotely on 2020-01-01 through 2023-12-31
   screening data. RankIC uses five-day forward returns sampled every five days.
   Long-short returns use a one-day signal lag. Factor artifacts stay on the data
   host; metadata, metrics, acceptance status, and checksums are registered locally.
@@ -89,4 +135,4 @@ gf_factor_rich_style_description: |-
 gf_factor_experiment_setting: |-
   | Dataset | Expression runtime | Screening split | Feedback |
   |---|---|---|---|
-  | GF A-share G:/base | Safe remote DSL worker | 2022-2023 | IC, RankIC, return, risk, turnover, coverage, stability |
+  | GF A-share G:/base | Safe remote DSL worker | 2020-2023 | IC, RankIC, return, risk, turnover, coverage, stability |

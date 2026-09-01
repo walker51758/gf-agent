@@ -10,7 +10,7 @@ from rdagent.core.exception import FactorEmptyError
 from rdagent.scenarios.gf_quant.developer.coder import GFFactorCoder
 from rdagent.scenarios.gf_quant.developer.factor_runner import GFFactorRunner
 from rdagent.scenarios.gf_quant.registry import FactorRegistry
-from rdagent.scenarios.gf_quant.service import EvaluationResult
+from rdagent.scenarios.gf_quant.service import EvaluationResult, FactorAcceptanceService
 
 
 def _task(name: str = "reversal_20", expression: str = "-pct_change(adjclose, 20)") -> FactorTask:
@@ -68,6 +68,12 @@ def test_remote_runner_writes_trace_metrics_and_registry(tmp_path: Path) -> None
                 "turnover": 0.25,
                 "coverage": 0.92,
                 "win_rate": 0.54,
+                "metrics_by_year": {
+                    "2020": {"Rank_IC": 0.04},
+                    "2021": {"Rank_IC": 0.06},
+                    "2022": {"Rank_IC": 0.05},
+                    "2023": {"Rank_IC": 0.05},
+                },
                 "stability_by_year": {"2022": {"annualized_return": 0.08}},
             },
             artifact_path="G:/gf_quant_agent/artifacts/reversal_20.parquet",
@@ -81,7 +87,8 @@ def test_remote_runner_writes_trace_metrics_and_registry(tmp_path: Path) -> None
     exp.sub_tasks[0].search_direction = "reversal"
     GFFactorCoder(SimpleNamespace()).develop(exp)
     registry = FactorRegistry(tmp_path / "factor_registry.sqlite")
-    result = GFFactorRunner(SimpleNamespace(), evaluator=evaluator, registry=registry).develop(exp)
+    service = FactorAcceptanceService(registry, evaluator, calibrations={})  # explicit development fallback
+    result = GFFactorRunner(SimpleNamespace(), evaluator=evaluator, registry=registry, service=service).develop(exp)
 
     assert seen[0].family == "price_volume"
     assert seen[0].expression == "-pct_change(adjclose, 20)"

@@ -32,11 +32,29 @@ class GFFactorScenario(QlibFactorScenario):
         self._interface = deepcopy(T(".prompts:gf_factor_interface").r())
         self._strategy = deepcopy(T(".prompts:gf_factor_strategy").r())
         self._simulator = deepcopy(T(".prompts:gf_factor_simulator").r())
+        self._acceptance_standards = deepcopy(T(".prompts:gf_factor_acceptance_standards").r())
         self._rich_style_description = deepcopy(T(".prompts:gf_factor_rich_style_description").r())
         self._experiment_setting = deepcopy(T(".prompts:gf_factor_experiment_setting").r())
 
     def get_source_data_desc(self, task: Task | None = None) -> str:
         return self._source_data
+
+    @property
+    def acceptance_standards(self) -> str:
+        """How acceptance is decided: calibrated family benchmark standards."""
+        return self._acceptance_standards
+
+    def get_scenario_all_desc(
+        self, task: Task | None = None, filtered_tag: str | None = None, simple_background: bool | None = None
+    ) -> str:
+        """Same as the Qlib scenario, plus the calibrated acceptance policy."""
+        base = super().get_scenario_all_desc(task, filtered_tag, simple_background)
+        if simple_background:
+            return base
+        return f"""{base}
+How acceptance is decided:
+{self.acceptance_standards}
+"""
 
     def get_runtime_environment(self):
         return (

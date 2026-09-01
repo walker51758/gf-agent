@@ -138,7 +138,7 @@ class GFScenarioSettings(ExtendedBaseSettings):
     factor_evaluation_mode: Literal["remote", "local"] = "remote"
     """Evaluation backend. Remote is the production default; local is explicit development mode."""
 
-    evaluation_start: str = "2022-01-01"
+    evaluation_start: str = "2020-01-01"
     evaluation_end: str = "2023-12-31"
     evaluation_lookback_days: int = 1200
     evaluation_close_field: str = "adjclose"
@@ -152,6 +152,47 @@ class GFScenarioSettings(ExtendedBaseSettings):
 
     dedup_threshold: float = 0.88
     dedup_min_overlap: int = 100
+
+    # ---- TEMPORARY annual screening gate ----------------------------------
+    # The screening window is now four calendar years (2020-2023), so a
+    # candidate must also hold up inside individual years instead of only in
+    # aggregate.  These knobs only apply while a family has *no* calibrated
+    # benchmark standards (development fallback); the calibrated standards
+    # replace them as soon as ``benchmark_standards_path`` exists.
+    annual_gate_min_years_with_rank_ic: int = 3
+    """TEMPORARY fallback: require at least this many calendar years with a
+    finite Rank_IC in ``metrics_by_year`` before a candidate can be accepted."""
+
+    annual_gate_min_matching_sign_years: int = 2
+    """TEMPORARY fallback: require at least this many yearly Rank_IC values to
+    share the same nonzero sign as the aggregate Rank_IC."""
+
+    # ---- benchmark calibration --------------------------------------------
+    benchmark_standards_path: str = "configs/gf_quant/benchmark_standards.json"
+    """Machine-readable calibrated standards produced by
+    ``scripts/gf_quant_benchmark_controller.py``.  Relative paths resolve
+    against the repository root, not the current working directory."""
+
+    benchmark_signature_dir: str = "git_ignore_folder/gf_benchmark/signatures"
+    """Directory holding the compact benchmark profiles used for family-aware
+    candidate redundancy checks (no benchmark panel is ever downloaded)."""
+
+    benchmark_calibration_required: bool = False
+    """Fail closed when True: acceptance raises if the calibrated standards file
+    is missing or invalid instead of using the development fallback."""
+
+    benchmark_profile_required: bool = False
+    """Fail closed when True: a candidate without a compact daily profile fails
+    the direction-adjusted return/Sharpe/drawdown gates.  When False those gates
+    are skipped and the skip is recorded in the registry metadata."""
+
+    benchmark_cluster_threshold: float = 0.88
+    """Absolute-profile correlation threshold used to cluster benchmark factors
+    inside a family during calibration."""
+
+    benchmark_cluster_min_overlap: int = 100
+    """Minimum overlapping trading days for two benchmark profiles to be
+    correlated during calibration."""
 
 
 GF_SCENARIO_SETTINGS = GFScenarioSettings()

@@ -20,6 +20,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Literal, Mapping
 
+import pandas as pd
+
 from rdagent.scenarios.gf_quant.conf import GF_SCENARIO_SETTINGS
 from rdagent.scenarios.gf_quant.service import EvaluationResult, FactorCandidate
 
@@ -28,6 +30,30 @@ DEFAULT_HOST_KEY = "SHA256:6MqioxKcyZXMd1dx+t+DJOgSWXIqJUtb0j4Zaay/3x0"
 SAFE_REMOTE_PATH = re.compile(r"^[A-Za-z0-9_./:-]+$")
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9_.-]+")
 EvaluationMode = Literal["remote", "local"]
+
+
+def profile_from_payload(profile: Any) -> pd.Series | None:
+    """Decode the compact daily long-short return profile of a worker result.
+
+    The profile feeds direction-adjusted gating and family-aware redundancy; an
+    older worker result without one simply returns ``None``.
+    """
+    if not isinstance(profile, Mapping):
+        return None
+    dates = profile.get("dates") or []
+    spread = profile.get("spread") or []
+    if not dates or len(dates) != len(spread):
+        return None
+    index = []
+    values = []
+    for date, value in zip(dates, spread):
+        if value is None:
+            continue
+        index.append(pd.Timestamp(date))
+        values.append(float(value))
+    if not index:
+        return None
+    return pd.Series(values, index=pd.DatetimeIndex(index), name="long_short_spread")
 
 
 @dataclass(frozen=True)
@@ -235,6 +261,7 @@ class GFFactorEvaluator:
             metrics=dict(metrics),
             artifact_path=payload.get("artifact_path"),
             artifact_checksum=payload.get("artifact_checksum"),
+            return_profile=profile_from_payload(payload.get("profile")),
         )
 
     def _evaluate_locally(self, request: Mapping[str, Any]) -> dict[str, Any]:

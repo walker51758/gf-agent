@@ -19,7 +19,7 @@ def _settings() -> SimpleNamespace:
         data_base_path="G:/base",
         evaluation_lookback_days=1200,
         evaluation_close_field="adjclose",
-        evaluation_start="2022-01-01",
+        evaluation_start="2020-01-01",
         evaluation_end="2023-12-31",
         evaluation_label_horizon=5,
         evaluation_quantile=0.2,
@@ -63,7 +63,7 @@ def test_remote_evaluator_is_default_and_uses_screening_window() -> None:
     assert evaluator.mode == "remote"
     assert received["request"]["name"] == "mean_reversion_20"
     assert received["request"]["evaluation"] == {
-        "start": "2022-01-01",
+        "start": "2020-01-01",
         "end": "2023-12-31",
         "label_horizon": 5,
         "quantile": 0.2,
@@ -116,3 +116,114 @@ def test_worker_coverage_cannot_exceed_one() -> None:
     metrics, _ = evaluate_factor(factor, close, config)
 
     assert 0.0 <= metrics["coverage"] <= 1.0
+
+
+ANNUAL_METRIC_KEYS = (
+    "IC",
+    "IC_std",
+    "ICIR",
+    "Rank_IC",
+    "Rank_IC_std",
+    "Rank_ICIR",
+    "annualized_return",
+    "sharpe",
+    "max_drawdown",
+    "turnover",
+    "coverage",
+    "long_short_spread_daily",
+    "win_rate",
+    "observations",
+    "ic_observations",
+)
+
+
+def _multi_year_panel() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """A synthetic 2020-2023 panel with a usable per-date cross-section."""
+
+    dates = pd.date_range("2020-01-01", "2023-12-31", freq="D")
+    index = range(len(dates))
+    offsets = (("A", 0.0), ("B", 1.0), ("C", 2.0))
+    factor = pd.DataFrame(
+        {symbol: pd.Series(list(index), index=dates) + offset for symbol, offset in offsets},
+        index=dates,
+    )
+    slopes = {"A": 0.01, "B": 0.02, "C": 0.005}
+    close = pd.DataFrame(
+        {symbol: 10.0 + slope * pd.Series(list(index), index=dates, dtype=float) for symbol, slope in slopes.items()},
+        index=dates,
+    )
+    return factor, close
+
+
+def test_worker_metrics_by_year_covers_every_calendar_year() -> None:
+    factor, close = _multi_year_panel()
+    config = EvaluationConfig(
+        start="2020-01-01",
+        end="2023-12-31",
+        label_horizon=5,
+        quantile=0.34,  # both legs are non-empty for a three-symbol panel
+        min_cross_section=2,
+        sample_step=1,
+    )
+
+    metrics, _ = evaluate_factor(factor, close, config)
+
+    assert set(metrics["metrics_by_year"]) == {"2020", "2021", "2022", "2023"}
+    for yearly in metrics["metrics_by_year"].values():
+        assert set(yearly) == set(ANNUAL_METRIC_KEYS)
+    assert set(metrics["stability_by_year"]) == {"2020", "2021", "2022", "2023"}  # compatibility kept
+    assert metrics["stability_by_year"]["2020"].keys() == {"annualized_return", "sharpe", "days"}
+
+
+def test_worker_metrics_by_year_attributes_observations_to_signal_year() -> None:
+    factor, close = _multi_year_panel()
+    config = EvaluationConfig(
+        start="2020-01-01",
+        end="2023-12-31",
+        label_horizon=5,  # the forward label of late December crosses into January
+        quantile=0.34,  # both legs are non-empty for a three-symbol panel
+        min_cross_section=2,
+        sample_step=1,
+    )
+
+    metrics, _ = evaluate_factor(factor, close, config)
+
+    # Rebuild the aggregate observation index the same way the worker does:
+    # one long-short observation per signal date with both legs populated.
+    quantile = config.quantile
+    one_day = close.pct_change(fill_method=None)
+    signal = factor.shift(1).rank(axis=1, pct=True)
+    long_ret = one_day.where(signal >= 1.0 - quantile).mean(axis=1)
+    short_ret = one_day.where(signal <= quantile).mean(axis=1)
+    spread = (long_ret - short_ret).replace([np.inf, -np.inf], np.nan).dropna()
+
+    by_year = metrics["metrics_by_year"]
+    assert sum(yearly["observations"] for yearly in by_year.values()) == metrics["observations"] == len(spread)
+    assert metrics["observations"] > 0
+    for year, yearly in by_year.items():
+        expected = int((spread.index.year == int(year)).sum())
+        assert yearly["observations"] == expected  # a late-December signal stays in its own year
+    assert sum(yearly["ic_observations"] for yearly in by_year.values()) == metrics["ic_observations"]
+    assert metrics["IC"] == pytest.approx(
+        sum(yearly["IC"] * yearly["ic_observations"] for yearly in by_year.values()) / metrics["ic_observations"]
+    )
+
+
+def test_worker_aggregate_metrics_are_unchanged_by_the_annual_breakdown() -> None:
+    factor, close = _multi_year_panel()
+    config = EvaluationConfig(
+        start="2020-01-01",
+        end="2023-12-31",
+        label_horizon=5,
+        quantile=0.34,  # both legs are non-empty for a three-symbol panel
+        min_cross_section=2,
+        sample_step=1,
+    )
+
+    metrics, _ = evaluate_factor(factor, close, config)
+
+    for year, yearly in metrics["metrics_by_year"].items():
+        assert 0.0 <= yearly["coverage"] <= 1.0
+        assert 0.0 <= yearly["win_rate"] <= 1.0
+        assert yearly["max_drawdown"] <= 0.0
+    assert metrics["max_drawdown"] <= min(yearly["max_drawdown"] for yearly in metrics["metrics_by_year"].values())

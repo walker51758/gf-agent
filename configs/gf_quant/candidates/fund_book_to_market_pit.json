@@ -7,7 +7,7 @@
   "lookback_days": 1200,
   "artifact_path": "G:/gf_quant_agent/artifacts/fund_book_to_market_pit.parquet",
   "evaluation": {
-    "start": "2022-01-01",
+    "start": "2020-01-01",
     "end": "2023-12-31",
     "label_horizon": 5,
     "quantile": 0.2,
