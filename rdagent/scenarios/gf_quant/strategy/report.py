@@ -134,6 +134,10 @@ def epoch_report(result: OuterEpochResult) -> dict[str, Any]:
         "epoch_id": result.epoch_id,
         "created_at": result.created_at,
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "evaluation": {
+            "start": result.evaluation_start,
+            "end": result.evaluation_end,
+        },
         "snapshot": {
             "snapshot_id": result.snapshot.snapshot_id,
             "checksum": result.snapshot.checksum,
@@ -145,6 +149,7 @@ def epoch_report(result: OuterEpochResult) -> dict[str, Any]:
             "snapshot_checksum": result.working_set.snapshot_checksum,
             "factor_count": len(result.working_set.factors),
             "eligibility_tiers": tiers,
+            "portfolio_feedback": _json_safe(dict(result.working_set.portfolio_feedback)),
         },
         "summary": {
             "strategy_trials": len(result.strategy_trials),

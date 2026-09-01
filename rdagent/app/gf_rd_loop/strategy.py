@@ -25,7 +25,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 import typer
 from dotenv import load_dotenv
@@ -69,6 +69,8 @@ def epoch_summary(result: OuterEpochResult) -> dict[str, Any]:
         "strategy_statuses": statuses,
         "factor_demands": len(result.factor_demands),
         "factor_research_rounds": len(result.factor_research_results),
+        "evaluation_start": result.evaluation_start,
+        "evaluation_end": result.evaluation_end,
     }
 
 
@@ -78,6 +80,9 @@ def run_strategy_epochs(
     epochs: int,
     data_cutoff: str,
     report_dir: str | Path,
+    evaluation_start: str | None = None,
+    evaluation_end: str | None = None,
+    epoch_window_factory: Callable[[int], Mapping[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
     """Run whole outer epochs and persist one compact report per epoch.
 
@@ -97,8 +102,23 @@ def run_strategy_epochs(
     for index in range(epochs):
         result: OuterEpochResult | None = None
         error: str | None = None
+        window: dict[str, str | None] = {
+            "data_cutoff": data_cutoff,
+            "evaluation_start": evaluation_start,
+            "evaluation_end": evaluation_end,
+        }
+        if epoch_window_factory is not None:
+            overrides = dict(epoch_window_factory(index))
+            unknown = sorted(set(overrides).difference(window))
+            if unknown:
+                raise ValueError(f"epoch window contains unsupported keys: {unknown}")
+            window.update(overrides)
         try:
-            result = orchestrator.run_epoch(data_cutoff=data_cutoff)
+            result = orchestrator.run_epoch(
+                data_cutoff=str(window["data_cutoff"]),
+                evaluation_start=window["evaluation_start"],
+                evaluation_end=window["evaluation_end"],
+            )
         except Exception as exc:  # keep going, but say so in the report
             error = f"{type(exc).__name__}: {exc}"
 
@@ -111,6 +131,35 @@ def run_strategy_epochs(
         reports.append(report)
         print(json.dumps(report, ensure_ascii=False))
     return reports
+
+
+def load_epoch_windows(path: str | Path) -> list[dict[str, str]]:
+    """Load an explicit per-epoch PIT/evaluation schedule from JSON.
+
+    Keeping the schedule in a small local file makes advancing outer epochs
+    auditable and reproducible without embedding calendar arithmetic in the
+    orchestrator.  Each entry must contain ``data_cutoff``,
+    ``evaluation_start`` and ``evaluation_end``.
+    """
+
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(payload, list) or not payload:
+        raise ValueError("epoch window file must contain a non-empty JSON list")
+    required = {"data_cutoff", "evaluation_start", "evaluation_end"}
+    windows: list[dict[str, str]] = []
+    for index, item in enumerate(payload):
+        if not isinstance(item, Mapping):
+            raise ValueError(f"epoch window {index} must be a JSON object")
+        missing = sorted(required.difference(item))
+        if missing:
+            raise ValueError(f"epoch window {index} is missing: {missing}")
+        window = {key: str(item[key]) for key in required}
+        if any(not value for value in window.values()):
+            raise ValueError(f"epoch window {index} contains an empty date")
+        if window["evaluation_start"] > window["evaluation_end"]:
+            raise ValueError(f"epoch window {index} has evaluation_start after evaluation_end")
+        windows.append(window)
+    return windows
 
 
 class EpochBoundStrategyService:
@@ -129,9 +178,22 @@ class EpochBoundStrategyService:
         self._evaluator_factory = evaluator_factory
         self._bound: bool = False
 
-    def bind_epoch(self, *, snapshot: Any, working_set: Any, epoch_id: str) -> None:
+    def bind_epoch(
+        self,
+        *,
+        snapshot: Any,
+        working_set: Any,
+        epoch_id: str,
+        evaluation_start: str | None = None,
+        evaluation_end: str | None = None,
+    ) -> None:
         self._bound = True
-        self._service.evaluator = self._evaluator_factory(snapshot=snapshot, working_set=working_set)
+        self._service.evaluator = self._evaluator_factory(
+            snapshot=snapshot,
+            working_set=working_set,
+            evaluation_start=evaluation_start,
+            evaluation_end=evaluation_end,
+        )
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._service, name)
@@ -250,13 +312,21 @@ def build_strategy_orchestrator(
 
     factor_registry = factor_registry or FactorRegistry(settings.registry_path)
     strategy_registry = strategy_registry or StrategyRegistry(settings.strategy_registry_path)
+    default_evaluation_start = evaluation_start
+    default_evaluation_end = evaluation_end
 
-    def make_remote_evaluator(*, snapshot: Any, working_set: Any) -> MaterializingRemoteStrategyEvaluator:
+    def make_remote_evaluator(
+        *,
+        snapshot: Any,
+        working_set: Any,
+        evaluation_start: str | None = None,
+        evaluation_end: str | None = None,
+    ) -> MaterializingRemoteStrategyEvaluator:
         return MaterializingRemoteStrategyEvaluator(
             snapshot=snapshot,
             working_set=working_set,
-            evaluation_start=evaluation_start,
-            evaluation_end=evaluation_end,
+            evaluation_start=evaluation_start or default_evaluation_start,
+            evaluation_end=evaluation_end or default_evaluation_end,
             settings=settings,
             rebalance_frequency=rebalance_frequency,
             materializer=artifact_materializer,
@@ -324,6 +394,10 @@ def main(
     snapshot_dir: Annotated[Path, typer.Option(help="Directory receiving frozen snapshot JSON.")] = Path(
         "git_ignore_folder/gf_quant/snapshots"
     ),
+    epoch_windows: Annotated[
+        Path | None,
+        typer.Option(help="Optional JSON list of per-epoch data/evaluation windows."),
+    ] = None,
 ) -> None:
     """Run the remote-first GF strategy research loop over N outer epochs."""
     if rebalance_frequency not in REBALANCE_FREQUENCIES:
@@ -345,11 +419,17 @@ def main(
         ),
         snapshot_dir=snapshot_dir,
     )
+    windows = load_epoch_windows(epoch_windows) if epoch_windows is not None else None
+    if windows is not None and len(windows) < epochs:
+        raise ValueError(f"epoch window file contains {len(windows)} windows but epochs={epochs}")
     run_strategy_epochs(
         orchestrator,
         epochs=epochs,
         data_cutoff=data_cutoff,
         report_dir=report_dir,
+        evaluation_start=evaluation_start,
+        evaluation_end=evaluation_end,
+        epoch_window_factory=(lambda index: windows[index]) if windows is not None else None,
     )
 
 

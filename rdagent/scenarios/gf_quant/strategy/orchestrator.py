@@ -86,6 +86,8 @@ class StrategyProposalContext:
     snapshot_id: str
     working_set: FactorWorkingSet
     prior_outcomes: tuple[TrialOutcomeSummary, ...]
+    evaluation_start: str | None = None
+    evaluation_end: str | None = None
 
 
 class StrategyProposalEngine(Protocol):
@@ -184,6 +186,8 @@ class OuterEpochResult:
     contributions: tuple[FactorContribution, ...]
     factor_demands: tuple[FactorDemand, ...]
     factor_research_results: tuple[Any, ...] = field(default_factory=tuple)
+    evaluation_start: str | None = None
+    evaluation_end: str | None = None
 
     def compact_summary(self) -> dict[str, Any]:
         return {
@@ -340,6 +344,10 @@ class GFQuantOrchestrator:
         self.factor_research_engine = factor_research_engine
         self.config = config or OuterEpochConfig()
         self.snapshot_dir = Path(snapshot_dir) if snapshot_dir is not None else None
+        # Feedback is intentionally held outside the frozen snapshot.  It is a
+        # selection hint for the *next* epoch; the current epoch remains fully
+        # reproducible against its already-written snapshot and working set.
+        self._portfolio_feedback: dict[str, float] = {}
 
     def _validate_candidate(self, candidate: StrategyCandidate, working_set: FactorWorkingSet) -> None:
         if not candidate.factor_names:
@@ -354,7 +362,15 @@ class GFQuantOrchestrator:
         if unknown:
             raise ValueError(f"strategy references factors outside the frozen working set: {unknown[:3]}")
 
-    def _bind_epoch(self, snapshot: FactorUniverseSnapshot, working_set: FactorWorkingSet, epoch_id: str) -> None:
+    def _bind_epoch(
+        self,
+        snapshot: FactorUniverseSnapshot,
+        working_set: FactorWorkingSet,
+        epoch_id: str,
+        *,
+        evaluation_start: str | None = None,
+        evaluation_end: str | None = None,
+    ) -> None:
         """Publish the freshly frozen snapshot to the strategy service, if it wants it.
 
         An evaluator that materializes remote artifacts has to know which
@@ -365,7 +381,17 @@ class GFQuantOrchestrator:
 
         bind = getattr(self.strategy_service, "bind_epoch", None)
         if callable(bind):
-            bind(snapshot=snapshot, working_set=working_set, epoch_id=epoch_id)
+            kwargs = {"snapshot": snapshot, "working_set": working_set, "epoch_id": epoch_id}
+            if evaluation_start is not None or evaluation_end is not None:
+                kwargs.update(evaluation_start=evaluation_start, evaluation_end=evaluation_end)
+            try:
+                bind(**kwargs)
+            except TypeError:
+                # Preserve compatibility with older custom services whose hook
+                # only accepted the original three provenance arguments.
+                if evaluation_start is None and evaluation_end is None:
+                    raise
+                bind(snapshot=snapshot, working_set=working_set, epoch_id=epoch_id)
 
     @staticmethod
     def _outcome_summary(trial: StrategyTrial) -> TrialOutcomeSummary:
@@ -384,18 +410,32 @@ class GFQuantOrchestrator:
             metrics=keep,
         )
 
-    def run_epoch(self, *, data_cutoff: str, epoch_id: str | None = None) -> OuterEpochResult:
+    def run_epoch(
+        self,
+        *,
+        data_cutoff: str,
+        epoch_id: str | None = None,
+        evaluation_start: str | None = None,
+        evaluation_end: str | None = None,
+    ) -> OuterEpochResult:
         created_at = datetime.now(timezone.utc).isoformat()
         snapshot = build_factor_universe_snapshot(self.factor_registry, data_cutoff=data_cutoff, created_at=created_at)
         working_set = build_factor_working_set(
             snapshot,
             core_limit=self.config.working_set_core,
             conditional_limit=self.config.working_set_conditional,
+            portfolio_feedback=self._portfolio_feedback,
         )
         resolved_epoch_id = epoch_id or f"gf_epoch_{snapshot.checksum[:12]}_{created_at[:10].replace('-', '')}"
         if self.snapshot_dir is not None:
             snapshot.write_json(self.snapshot_dir / f"{snapshot.snapshot_id}.json")
-        self._bind_epoch(snapshot, working_set, resolved_epoch_id)
+        self._bind_epoch(
+            snapshot,
+            working_set,
+            resolved_epoch_id,
+            evaluation_start=evaluation_start,
+            evaluation_end=evaluation_end,
+        )
 
         trials: list[StrategyTrial] = []
         prior: list[TrialOutcomeSummary] = []
@@ -410,6 +450,8 @@ class GFQuantOrchestrator:
                         snapshot_id=snapshot.snapshot_id,
                         working_set=working_set,
                         prior_outcomes=tuple(prior),
+                        evaluation_start=evaluation_start,
+                        evaluation_end=evaluation_end,
                     )
                 )
                 self._validate_candidate(candidate, working_set)
@@ -421,6 +463,14 @@ class GFQuantOrchestrator:
             trials.append(trial)
 
         contributions = aggregate_factor_contributions(trials, working_set)
+        # Carry only finite marginal-return evidence forward.  The snapshot and
+        # this epoch's trials are immutable; the hint affects selection next
+        # time run_epoch is called on this orchestrator.
+        for contribution in contributions:
+            if contribution.factor_id:
+                self._portfolio_feedback[contribution.factor_id] = _finite(
+                    contribution.mean_marginal_annualized_return
+                )
         demands = derive_factor_demands(
             epoch_id=resolved_epoch_id,
             trials=trials,
@@ -466,4 +516,6 @@ class GFQuantOrchestrator:
             contributions=contributions,
             factor_demands=demands,
             factor_research_results=tuple(research_results),
+            evaluation_start=evaluation_start,
+            evaluation_end=evaluation_end,
         )

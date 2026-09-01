@@ -168,6 +168,13 @@
    * `RemoteStrategyEvaluator` 要求因子清单与候选引用的因子**完全一致**，
      而同一 epoch 内每个试验会选不同子集，所以因子清单按候选逐个物化，
      而不是每个 epoch 一次。
+   * epoch 间会携带上一轮组合消融的边际年化收益作为 working-set 选择提示：
+     正贡献因子优先、无证据因子保持质量排序、负贡献因子后置。该提示不修改
+     当前已冻结快照，只影响下一轮的 working set，并写入 working-set provenance。
+   * `run_strategy_epochs` 默认可以复用同一历史窗口；需要推进研究时间时，
+     通过 `epoch_window_factory` 或 CLI 的 `--epoch-windows` 传入每个 epoch
+     独立的 `data_cutoff`、`evaluation_start` 和 `evaluation_end`，从而把 PIT
+     截止日与组合评价窗口一并纳入报告。
 
 ## 6. 需要用户确认的关键口径
 

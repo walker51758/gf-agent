@@ -13,7 +13,7 @@ import hashlib
 import json
 import math
 from collections import defaultdict, deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal, Mapping, Sequence
@@ -290,17 +290,52 @@ def build_factor_universe_snapshot(
     )
 
 
-def _diverse_take(factors: Sequence[FactorSnapshotItem], limit: int) -> list[FactorSnapshotItem]:
-    """Take strong factors round-robin across cluster/theme buckets."""
+def _feedback_value(portfolio_feedback: Mapping[str, Any] | None, factor_id: str) -> float:
+    """Read a finite portfolio contribution without letting feedback break selection."""
+
+    if not portfolio_feedback:
+        return 0.0
+    try:
+        value = float(portfolio_feedback.get(factor_id, 0.0))
+    except (TypeError, ValueError):
+        return 0.0
+    return value if math.isfinite(value) else 0.0
+
+
+def _diverse_take(
+    factors: Sequence[FactorSnapshotItem],
+    limit: int,
+    *,
+    portfolio_feedback: Mapping[str, Any] | None = None,
+) -> list[FactorSnapshotItem]:
+    """Take strong factors round-robin across cluster/theme buckets.
+
+    Portfolio feedback is deliberately a coarse priority signal.  Factors with
+    positive marginal portfolio contribution are considered first, factors with
+    no evidence retain the normal quality ordering, and persistently negative
+    contributors are considered last.  This keeps the single-factor quality
+    score as the tie-breaker while giving the outer loop real selection pressure.
+    """
 
     if limit <= 0:
         return []
     buckets: dict[str, deque[FactorSnapshotItem]] = defaultdict(deque)
-    ordered = sorted(factors, key=lambda item: (-item.quality_score, -item.stability_score, item.factor_id))
+    def key(item: FactorSnapshotItem) -> tuple[int, float, float, float, str]:
+        feedback = _feedback_value(portfolio_feedback, item.factor_id)
+        bucket = 0 if feedback > 0 else 2 if feedback < 0 else 1
+        return (bucket, -feedback, -item.quality_score, -item.stability_score, item.factor_id)
+
+    ordered = sorted(factors, key=key)
     for factor in ordered:
         key = factor.correlation_cluster or factor.theme or factor.family
         buckets[key].append(factor)
-    keys = sorted(buckets, key=lambda key: (-buckets[key][0].quality_score, key))
+    def bucket_order(bucket_name: str) -> tuple[int, float, float, float, str]:
+        first = buckets[bucket_name][0]
+        feedback = _feedback_value(portfolio_feedback, first.factor_id)
+        bucket = 0 if feedback > 0 else 2 if feedback < 0 else 1
+        return (bucket, -feedback, -first.quality_score, -first.stability_score, bucket_name)
+
+    keys = sorted(buckets, key=bucket_order)
     selected: list[FactorSnapshotItem] = []
     while keys and len(selected) < limit:
         next_keys: list[str] = []
@@ -322,6 +357,7 @@ class FactorWorkingSet:
     core_limit: int
     conditional_limit: int
     factors: tuple[FactorSnapshotItem, ...]
+    portfolio_feedback: Mapping[str, float] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         factor_ids = [factor.factor_id for factor in self.factors]
@@ -331,7 +367,13 @@ class FactorWorkingSet:
             raise ValueError("working set exceeds core limit")
         if sum(factor.eligibility_tier == "conditional" for factor in self.factors) > self.conditional_limit:
             raise ValueError("working set exceeds conditional limit")
-        expected = working_set_id_for(self.snapshot_checksum, factor_ids, self.core_limit, self.conditional_limit)
+        expected = working_set_id_for(
+            self.snapshot_checksum,
+            factor_ids,
+            self.core_limit,
+            self.conditional_limit,
+            self.portfolio_feedback,
+        )
         if self.working_set_id != expected:
             raise ValueError("working set id does not match its contents")
 
@@ -343,15 +385,37 @@ class FactorWorkingSet:
             "core_limit": self.core_limit,
             "conditional_limit": self.conditional_limit,
             "factors": [factor.as_payload() for factor in self.factors],
+            "portfolio_feedback": dict(self.portfolio_feedback),
         }
 
 
-def working_set_id_for(snapshot_checksum: str, factor_ids: Sequence[str], core_limit: int, conditional_limit: int) -> str:
+def _canonical_feedback(portfolio_feedback: Mapping[str, Any] | None) -> dict[str, float]:
+    if not portfolio_feedback:
+        return {}
+    normalized: dict[str, float] = {}
+    for key, value in portfolio_feedback.items():
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(number):
+            normalized[str(key)] = number
+    return dict(sorted(normalized.items()))
+
+
+def working_set_id_for(
+    snapshot_checksum: str,
+    factor_ids: Sequence[str],
+    core_limit: int,
+    conditional_limit: int,
+    portfolio_feedback: Mapping[str, Any] | None = None,
+) -> str:
     payload = {
         "snapshot_checksum": snapshot_checksum,
         "factor_ids": list(factor_ids),
         "core_limit": core_limit,
         "conditional_limit": conditional_limit,
+        "portfolio_feedback": _canonical_feedback(portfolio_feedback),
     }
     return f"gf_working_set_{hashlib.sha256(_canonical_json(payload).encode()).hexdigest()[:16]}"
 
@@ -361,22 +425,41 @@ def build_factor_working_set(
     *,
     core_limit: int = 16,
     conditional_limit: int = 8,
+    portfolio_feedback: Mapping[str, Any] | None = None,
 ) -> FactorWorkingSet:
     """Select the default 16 core + 8 conditional factors deterministically."""
 
     if core_limit < 0 or conditional_limit < 0 or core_limit + conditional_limit < 1:
         raise ValueError("working-set limits must be non-negative with a positive total")
-    core = _diverse_take([factor for factor in snapshot.factors if factor.eligibility_tier == "core"], core_limit)
+    core = _diverse_take(
+        [factor for factor in snapshot.factors if factor.eligibility_tier == "core"],
+        core_limit,
+        portfolio_feedback=portfolio_feedback,
+    )
     conditional = _diverse_take(
-        [factor for factor in snapshot.factors if factor.eligibility_tier == "conditional"], conditional_limit
+        [factor for factor in snapshot.factors if factor.eligibility_tier == "conditional"],
+        conditional_limit,
+        portfolio_feedback=portfolio_feedback,
     )
     factors = tuple([*core, *conditional])
     factor_ids = [factor.factor_id for factor in factors]
+    selected_feedback = {
+        factor.factor_id: _feedback_value(portfolio_feedback, factor.factor_id)
+        for factor in factors
+        if portfolio_feedback and factor.factor_id in portfolio_feedback
+    }
     return FactorWorkingSet(
-        working_set_id=working_set_id_for(snapshot.checksum, factor_ids, core_limit, conditional_limit),
+        working_set_id=working_set_id_for(
+            snapshot.checksum,
+            factor_ids,
+            core_limit,
+            conditional_limit,
+            selected_feedback,
+        ),
         snapshot_id=snapshot.snapshot_id,
         snapshot_checksum=snapshot.checksum,
         core_limit=core_limit,
         conditional_limit=conditional_limit,
         factors=factors,
+        portfolio_feedback=selected_feedback,
     )

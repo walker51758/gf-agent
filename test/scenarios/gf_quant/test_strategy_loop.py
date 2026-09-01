@@ -10,6 +10,7 @@ from rdagent.app.gf_rd_loop.strategy import (
     RemotePortfolioEvaluator,
     build_strategy_orchestrator,
     epoch_summary,
+    load_epoch_windows,
     run_strategy_epochs,
 )
 from rdagent.scenarios.gf_quant.registry import FactorRecord, FactorRegistry
@@ -229,6 +230,91 @@ def test_epoch_summary_shape(tmp_path) -> None:
     assert summary["epoch_id"] == "epoch_1"
     assert summary["strategy_statuses"] == {"accepted": 1, "rejected": 1}
     assert summary["factor_research_rounds"] == 1
+
+
+def test_epoch_window_factory_advances_evaluation_provenance(tmp_path) -> None:
+    orchestrator, _f, _s, service, _r = _build(tmp_path)
+    seen: list[dict] = []
+
+    def factory(**kwargs):
+        seen.append(kwargs)
+        return _strategy_evaluation
+
+    service._evaluator_factory = factory
+    windows = [
+        {"data_cutoff": "2023-12-31", "evaluation_start": "2020-01-01", "evaluation_end": "2021-12-31"},
+        {"data_cutoff": "2024-12-31", "evaluation_start": "2022-01-01", "evaluation_end": "2023-12-31"},
+    ]
+
+    reports = run_strategy_epochs(
+        orchestrator,
+        epochs=2,
+        data_cutoff="unused",
+        report_dir=tmp_path / "reports",
+        epoch_window_factory=lambda index: windows[index],
+    )
+
+    assert [entry["evaluation_start"] for entry in seen] == ["2020-01-01", "2022-01-01"]
+    assert [entry["evaluation_end"] for entry in seen] == ["2021-12-31", "2023-12-31"]
+    assert [report["evaluation_start"] for report in reports] == ["2020-01-01", "2022-01-01"]
+    assert [report["evaluation_end"] for report in reports] == ["2021-12-31", "2023-12-31"]
+
+
+def test_load_epoch_windows_validates_explicit_schedule(tmp_path) -> None:
+    path = tmp_path / "windows.json"
+    path.write_text(
+        json.dumps(
+            [
+                {
+                    "data_cutoff": "2023-12-31",
+                    "evaluation_start": "2020-01-01",
+                    "evaluation_end": "2021-12-31",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    assert load_epoch_windows(path)[0]["data_cutoff"] == "2023-12-31"
+
+    path.write_text(json.dumps([{"data_cutoff": "2023-12-31"}]), encoding="utf-8")
+    with pytest.raises(ValueError, match="missing"):
+        load_epoch_windows(path)
+
+
+def test_portfolio_feedback_demotes_harmful_factor_in_next_working_set(tmp_path) -> None:
+    orchestrator, factor_registry, _s, _service, _r = _build(tmp_path)
+    factor_registry.upsert(_factor("f3", "stable"))
+    value = factor_registry.get_by_name("value")
+    assert value is not None
+    factor_registry.upsert(
+        FactorRecord(
+            **{
+                **value.__dict__,
+                "metrics": {"Rank_IC": 0.08, "Rank_ICIR": 0.8, "coverage": 0.99},
+            }
+        )
+    )
+
+    def evaluate(candidate: StrategyCandidate) -> StrategyEvaluation:
+        result = _strategy_evaluation(candidate)
+        contributions = {
+            name: {"marginal_annualized_return": -0.2 if name == "value" else 0.1}
+            for name in candidate.factor_names
+        }
+        return StrategyEvaluation(**{**result.__dict__, "factor_contributions": contributions})
+
+    _service = EpochBoundStrategyService(
+        StrategyAcceptanceService(StrategyRegistry(tmp_path / "feedback_strategies.sqlite"), None, factor_registry=factor_registry),
+        lambda **_: evaluate,
+    )
+    orchestrator.strategy_service = _service
+    orchestrator.factor_research_engine = None
+    first = orchestrator.run_epoch(data_cutoff="2023-12-31", epoch_id="feedback_1")
+    second = orchestrator.run_epoch(data_cutoff="2023-12-31", epoch_id="feedback_2")
+
+    assert "value" in {factor.name for factor in first.working_set.factors}
+    assert "value" not in {factor.name for factor in second.working_set.factors}
+    assert second.working_set.portfolio_feedback
 
 
 def test_remote_portfolio_evaluator_rejects_unknown_frequency(tmp_path) -> None:
