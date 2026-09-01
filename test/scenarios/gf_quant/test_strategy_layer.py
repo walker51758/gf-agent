@@ -446,6 +446,37 @@ def test_strategy_service_rejects_gate_failures_fail_closed(tmp_path) -> None:
     assert "strategy_metrics_by_year_missing" in missing_years.gate_failures
 
 
+def test_strategy_policy_can_enforce_validation_target_and_yearly_stability() -> None:
+    policy = StrategyAcceptancePolicy(
+        min_annualized_return=0.08,
+        min_excess_annualized_return=0.0,
+        min_positive_return_years=2,
+    )
+    candidate = _candidate(name="strict_target")
+    metrics = {
+        "observations": 250,
+        "avg_holdings": 20,
+        "annualized_return": 0.07,
+        "excess_annualized_return": -0.01,
+        "sharpe": 0.8,
+        "max_drawdown": -0.2,
+        "annual_turnover": 3.0,
+        "metrics_by_year": {
+            "2022": {"annualized_return": 0.10, "sharpe": 0.8},
+            "2023": {"annualized_return": -0.02, "sharpe": -0.1},
+        },
+    }
+
+    passed, failures = policy.check(metrics, candidate)
+
+    assert passed is False
+    assert {
+        "annualized_return",
+        "excess_annualized_return",
+        "strategy_positive_return_years",
+    }.issubset(failures)
+
+
 def test_strategy_service_marks_overlapping_strategies_as_duplicates(tmp_path) -> None:
     service = _service(tmp_path, _skilled_backtest())
     first = service.process(_candidate())

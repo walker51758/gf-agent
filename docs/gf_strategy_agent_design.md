@@ -1,8 +1,8 @@
 # GF 基本面量化智能体：策略层设计与架构评估
 
-状态：**设计稿 + 第一批代码**。本文档回答交接文档中的两个未决问题——
+状态：**设计稿 + 全链路骨架**。本文档回答交接文档中的两个未决问题——
 “策略层应采用一体式端到端还是分层式模块化”，以及“第一批正式代码先落什么”。
-第二批及以后（远端组合回测、LLM 策略提案、策略反馈闭环）在本文档确认后启动。
+批次状态见第 5 节；批次 3（策略门槛校准）与真实的远端/LLM 联调仍未开始。
 
 ---
 
@@ -136,21 +136,38 @@
 * **策略登记表与因子登记表分离**，但共享 `factor_id`/`strategy_id` 的
   命名与生成方式（sha256 前 16 位），便于在元数据里互相引用。
 
-## 5. 后续批次（需确认后实施）
+## 5. 批次状态
 
-1. **批次 2：远端组合回测**。把组合评价层移植进
-   `scripts/gf_quant_remote_worker.py` 的兄弟 worker（单文件交付物、
-   不能 import 本地包），输入 = 目标权重规则 + 已接受因子/基本面面板，
-   输出 = 组合指标、逐年分解、日度收益与持仓轨迹紧凑摘要。沿用基准
-   worker 的断点续跑与“不下传大面板”约定。
-2. **批次 3：策略验收标准校准**。与因子侧同理，从基准策略池
-   （等权市值组合、自由现金流指数规则复刻等）校准组合侧门槛，
-   不用拍脑袋常数。
-3. **批次 4：LLM 策略提案与反馈**。LLM 只产出 `StrategyCandidate`
-   规格与组合规则 DSL，不产出回测代码；反馈复用
-   `format_factor_feedback` 的多指标 + 逐年渲染风格。
-4. **批次 5：策略反馈闭环接入研究循环**。与 `GFMiningLoop` 并列的
-   策略研究循环，家族化调度同样适用。
+1. **批次 2：远端组合回测 — 已实现**。`scripts/gf_quant_strategy_worker.py`
+   是单文件交付物、不 import 本地包；输入 = 目标权重规则 + 已物化的因子
+   面板，输出 = 组合指标、逐年分解、日度收益与因子贡献（消融）紧凑摘要。
+   `rdagent/scenarios/gf_quant/strategy/remote.py` 是本地请求/结果适配器，
+   `artifacts.py` 先把工作集因子重新物化到独立远端目录并记录校验和清单。
+2. **批次 3：策略验收标准校准 — 未开始**。`StrategyAcceptancePolicy` 仍是
+   显式的开发门槛；需要先有一个基准策略池（等权市值组合、自由现金流
+   指数规则复刻等）才能像因子侧那样校准。
+3. **批次 4：LLM 策略提案 — 已实现**。`proposal.py` 的
+   `LLMStrategyProposalEngine` 只产出 `StrategyCandidate` 规格与声明式
+   组合规则，绝不产出回测代码。
+4. **批次 5：策略反馈闭环接入研究循环 — 已实现（本地可测骨架 +
+   远端装配）**。`orchestrator.py` 是双时间尺度外循环：先在冻结工作集上
+   跑完内层组合试验，再由 `aggregate_factor_contributions` /
+   `derive_factor_demands` 把失败与消融结果翻译成 `FactorDemand`。
+   `factor_research.py` 的 `DemandDrivenFactorResearchEngine` 实现外循环的
+   因子研究端：把需求渲染成提案反馈、复用既有因子提案与验收服务、跳过
+   已登记因子名、返回可序列化摘要。`report.py` 把每个 epoch 落成紧凑
+   JSON 报告，`rdagent/app/gf_rd_loop/strategy.py` 负责真实装配（LLM 提案、
+   远端组合评价、需求驱动因子研究）与多 epoch 运行。
+
+   两个值得记录的装配约束：
+
+   * 快照只在 `run_epoch` 内部冻结，而远端评价器必须引用**这个**快照
+     （`created_at` 进入校验和，事后重建会得到不同 id）。因此 orchestrator
+     会在冻结后调用服务的 `bind_epoch` 钩子（可选，duck-typed），见
+     `GFQuantOrchestrator._bind_epoch`。
+   * `RemoteStrategyEvaluator` 要求因子清单与候选引用的因子**完全一致**，
+     而同一 epoch 内每个试验会选不同子集，所以因子清单按候选逐个物化，
+     而不是每个 epoch 一次。
 
 ## 6. 需要用户确认的关键口径
 

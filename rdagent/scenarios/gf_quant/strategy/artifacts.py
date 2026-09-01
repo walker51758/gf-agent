@@ -278,3 +278,87 @@ def materialize_factor_artifact_set(
         created_at=datetime.now(timezone.utc).isoformat(),
         factors=tuple(versions),
     )
+
+
+class FactorArtifactCache:
+    """Materialize each frozen factor at most once inside an outer epoch.
+
+    Strategy trials generally overlap in their factor selections.  Re-running
+    the remote factor worker for every candidate is both expensive and makes
+    provenance harder to audit.  This cache stores immutable
+    :class:`FactorArtifactVersion` objects and builds an exact manifest for the
+    factor subset used by each candidate.
+    """
+
+    def __init__(
+        self,
+        *,
+        working_set: FactorWorkingSet,
+        evaluation_start: str,
+        evaluation_end: str,
+        settings: Any,
+        remote_artifact_dir: str,
+        materializer: Callable[..., FactorArtifactSet] = materialize_factor_artifact_set,
+    ) -> None:
+        source_dir = str(settings.remote_artifact_dir).rstrip("/\\")
+        target_dir = remote_artifact_dir.rstrip("/\\")
+        if not target_dir or target_dir == source_dir:
+            raise ValueError("strategy factor artifacts require a versioned directory separate from source artifacts")
+        self.working_set = working_set
+        self.evaluation_start = evaluation_start
+        self.evaluation_end = evaluation_end
+        self.settings = settings
+        self.remote_artifact_dir = target_dir
+        self.materializer = materializer
+        self.created_at = datetime.now(timezone.utc).isoformat()
+        self._versions: dict[str, FactorArtifactVersion] = {}
+
+    @property
+    def cached_factor_names(self) -> tuple[str, ...]:
+        return tuple(sorted(self._versions))
+
+    def artifact_set_for(self, factor_names: Sequence[str]) -> FactorArtifactSet:
+        names = tuple(factor_names)
+        if not names or len(names) != len(set(names)):
+            raise ValueError("factor_names must be a non-empty distinct sequence")
+        available = {factor.name for factor in self.working_set.factors}
+        unknown = sorted(set(names).difference(available))
+        if unknown:
+            raise ValueError(f"factors are outside the working set: {unknown[:3]}")
+
+        for name in names:
+            if name in self._versions:
+                continue
+            materialized = self.materializer(
+                working_set=self.working_set,
+                factor_names=(name,),
+                evaluation_start=self.evaluation_start,
+                evaluation_end=self.evaluation_end,
+                settings=self.settings,
+                remote_artifact_dir=self.remote_artifact_dir,
+            )
+            if (
+                materialized.snapshot_id != self.working_set.snapshot_id
+                or materialized.working_set_id != self.working_set.working_set_id
+            ):
+                raise RuntimeError(f"materialized factor {name} has mismatched frozen provenance")
+            if len(materialized.factors) != 1 or materialized.factors[0].name != name:
+                raise RuntimeError(f"materializer did not return exactly the requested factor {name}")
+            self._versions[name] = materialized.factors[0]
+
+        factors = tuple(self._versions[name] for name in names)
+        return FactorArtifactSet(
+            artifact_set_id=artifact_set_id_for(
+                self.working_set.snapshot_id,
+                self.working_set.working_set_id,
+                self.evaluation_start,
+                self.evaluation_end,
+                factors,
+            ),
+            snapshot_id=self.working_set.snapshot_id,
+            working_set_id=self.working_set.working_set_id,
+            evaluation_start=self.evaluation_start,
+            evaluation_end=self.evaluation_end,
+            created_at=self.created_at,
+            factors=factors,
+        )

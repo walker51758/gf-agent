@@ -46,9 +46,11 @@ class StrategyAcceptancePolicy:
     min_avg_holdings: float = 5.0
     min_sharpe: float = 0.30
     min_annualized_return: float = 0.0
+    min_excess_annualized_return: float | None = None
     max_drawdown_abs: float = 0.50
     max_annual_turnover: float = 12.0
     min_valid_years: int = 2
+    min_positive_return_years: int = 0
 
     @staticmethod
     def _finite(metrics: Mapping[str, Any], name: str) -> float | None:
@@ -68,13 +70,18 @@ class StrategyAcceptancePolicy:
             # strategy cannot be judged at all.
             return ["strategy_metrics_by_year_missing"]
         valid = 0
+        positive = 0
         for values in by_year.values():
             if not isinstance(values, Mapping):
                 continue
             if self._finite(values, "sharpe") is not None and self._finite(values, "annualized_return") is not None:
                 valid += 1
+                if self._finite(values, "annualized_return") > 0:
+                    positive += 1
         if valid < self.min_valid_years:
             return ["strategy_valid_years"]
+        if positive < self.min_positive_return_years:
+            return ["strategy_positive_return_years"]
         return []
 
     def check(self, metrics: Mapping[str, Any], candidate: StrategyCandidate) -> tuple[bool, list[str]]:
@@ -107,6 +114,14 @@ class StrategyAcceptancePolicy:
                 lambda value: value <= self.max_annual_turnover,
             ),
         ]
+        if self.min_excess_annualized_return is not None:
+            checks.append(
+                (
+                    "excess_annualized_return",
+                    self._finite(metrics, "excess_annualized_return"),
+                    lambda value: value >= self.min_excess_annualized_return,
+                )
+            )
         if self.require_cost:
             # cost_bps == 0 means "no cost model at all", which is a modelling
             # omission rather than a cheap strategy.

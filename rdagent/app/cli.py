@@ -3,9 +3,11 @@
 import typer
 
 from rdagent.app.gf_rd_loop.factor import main as run_factor_loop
+from rdagent.app.gf_rd_loop.strategy import main as run_strategy_loop
 
 app = typer.Typer(help="GF A-share factor research agent")
 app.command("factor")(run_factor_loop)
+app.command("strategy")(run_strategy_loop)
 
 
 if __name__ == "__main__":

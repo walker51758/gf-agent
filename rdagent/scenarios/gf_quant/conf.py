@@ -150,6 +150,11 @@ class GFScenarioSettings(ExtendedBaseSettings):
     registry_path: str = "git_ignore_folder/gf_quant/factor_registry.sqlite"
     """Local SQLite metadata registry. Factor arrays stay in remote artifacts."""
 
+    strategy_registry_path: str = "git_ignore_folder/gf_quant/strategy_registry.sqlite"
+    """Local SQLite metadata registry for portfolio strategies. Kept separate from
+    ``registry_path`` so a strategy record can never overwrite a factor record;
+    the two are linked only through metadata references."""
+
     dedup_threshold: float = 0.88
     dedup_min_overlap: int = 100
 

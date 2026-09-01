@@ -110,11 +110,12 @@ python -m scripts.register_gf_live_results `
   --export artifacts/live/registry_snapshot.json
 ```
 
-## 策略层（第一批）
+## 策略层（因子到组合全链路）
 
-`rdagent/scenarios/gf_quant/strategy/` 开始把纯单因子工具扩展为
-“因子发现—因子整合—组合规则—组合评价/登记”全链路。第一批是纯新增模块，
-尚未接入研究循环，也不改动任何既有流程：
+`rdagent/scenarios/gf_quant/strategy/` 把纯单因子工具扩展为
+“因子发现—因子整合—组合规则—组合评价/登记—反馈”全链路：
+
+**组合构造与评价（纯本地、确定性）**
 
 - `candidate.py`：`StrategyCandidate` 规格——引用的因子或选样规则、Top-N、
   加权方式、权重上限、信号滞后与成本假设；与 `FactorCandidate` 字段独立。
@@ -125,8 +126,38 @@ python -m scripts.register_gf_live_results `
 - `registry.py` / `service.py`：独立的 SQLite 策略登记表、fail-closed 验收门，
   以及基于日度收益轨迹的策略去重（复用因子去重器）。
 
+**远端组合评价**
+
+- `snapshot.py`：把因子登记表冻结成不可变快照与更小的 `FactorWorkingSet`；
+  本轮新注册的因子只会在下一个 epoch 出现。
+- `artifacts.py`：把工作集中被引用的因子表达式重新物化到独立的远端目录，
+  生成带校验和的版本化清单，不触碰任何原始研究产物。
+- `remote.py` + `scripts/gf_quant_strategy_worker.py`：单文件远端组合 worker，
+  输出组合指标、逐年分解、因子贡献（消融）与紧凑收益轨迹。
+- `scripts/gf_quant_run_strategy_validation.py`：单独执行一个已物化的策略。
+
+**研究闭环（可运行入口）**
+
+- `proposal.py`：`LLMStrategyProposalEngine` 只产出声明式 JSON 规格，
+  绝不产出可执行回测代码。
+- `factor_research.py`：`DemandDrivenFactorResearchEngine` 把组合失败与
+  消融结果翻译成因子研究需求（`FactorDemand`），调用既有因子提案与验收
+  服务，返回可序列化的结果摘要；已登记的因子名会被跳过而不是重复提案。
+- `orchestrator.py`：`GFQuantOrchestrator` 双时间尺度循环——先在冻结的工作
+  集上跑完 N 个组合试验，再据此派生因子需求并触发因子研究。
+- `report.py`：`write_epoch_report` 把一个 epoch 落成紧凑、可审计、JSON 安全
+  的报告（不含任何面板或权重矩阵）。
+- `rdagent/app/gf_rd_loop/strategy.py`：把上述组件装配成可运行循环：
+
+```powershell
+python -m rdagent.app.gf_rd_loop.strategy --epochs 2 --trials-per-epoch 5
+```
+
+每个 epoch 在 `artifacts/live/strategy_epochs/` 下写入一份报告；某一轮失败
+会记录为 `status: "error"` 的报告而不是中断整个运行。
+
 架构评估（一体式端到端 / 分层模块化 / 折中）、与中证自由现金流指数编制规则
-的映射，以及后续批次计划见 `docs/gf_strategy_agent_design.md`。
+的映射，以及批次计划见 `docs/gf_strategy_agent_design.md`。
 
 运行核心测试：
 
@@ -137,7 +168,8 @@ python -m pytest -q
 ## 保留目录
 
 - `rdagent/scenarios/gf_quant/`：GF 数据、切分、指标、去重、登记与研究场景。
-- `rdagent/scenarios/gf_quant/strategy/`：策略层第一批（组合规则、组合回测、策略登记）。
+- `rdagent/scenarios/gf_quant/strategy/`：策略层（组合规则、组合回测、远端评价、
+  策略登记与因子到组合研究闭环）。
 - `rdagent/components/`、`rdagent/core/`：因子生成循环所需的最小 RD-Agent 基础设施。
 - `rdagent/scenarios/qlib/`：GF 因子循环仍需复用的 Qlib 因子基类和回测模板。
 - `scripts/`：远程控制器、远端 worker 与结果登记脚本。

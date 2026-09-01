@@ -354,6 +354,19 @@ class GFQuantOrchestrator:
         if unknown:
             raise ValueError(f"strategy references factors outside the frozen working set: {unknown[:3]}")
 
+    def _bind_epoch(self, snapshot: FactorUniverseSnapshot, working_set: FactorWorkingSet, epoch_id: str) -> None:
+        """Publish the freshly frozen snapshot to the strategy service, if it wants it.
+
+        An evaluator that materializes remote artifacts has to know which
+        snapshot an epoch is running against, but the snapshot only exists once
+        ``run_epoch`` has built it.  Services that care expose a ``bind_epoch``
+        method; everything else is unaffected and keeps working unchanged.
+        """
+
+        bind = getattr(self.strategy_service, "bind_epoch", None)
+        if callable(bind):
+            bind(snapshot=snapshot, working_set=working_set, epoch_id=epoch_id)
+
     @staticmethod
     def _outcome_summary(trial: StrategyTrial) -> TrialOutcomeSummary:
         assert trial.candidate is not None and trial.result is not None
@@ -382,6 +395,7 @@ class GFQuantOrchestrator:
         resolved_epoch_id = epoch_id or f"gf_epoch_{snapshot.checksum[:12]}_{created_at[:10].replace('-', '')}"
         if self.snapshot_dir is not None:
             snapshot.write_json(self.snapshot_dir / f"{snapshot.snapshot_id}.json")
+        self._bind_epoch(snapshot, working_set, resolved_epoch_id)
 
         trials: list[StrategyTrial] = []
         prior: list[TrialOutcomeSummary] = []

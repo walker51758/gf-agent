@@ -8,10 +8,17 @@ batch plan.
 """
 
 from rdagent.scenarios.gf_quant.strategy.backtest import PortfolioResult, run_portfolio_backtest
+from rdagent.scenarios.gf_quant.strategy.artifacts import FactorArtifactCache
 from rdagent.scenarios.gf_quant.strategy.candidate import BacktestSpec, CompositionSpec, StrategyCandidate
 from rdagent.scenarios.gf_quant.strategy.composition import build_target_weights
 from rdagent.scenarios.gf_quant.strategy.registry import StrategyRecord, StrategyRegistry, strategy_id_for
 from rdagent.scenarios.gf_quant.strategy.proposal import LLMStrategyProposalEngine
+from rdagent.scenarios.gf_quant.strategy.factor_research import (
+    FactorAttemptSummary,
+    FactorResearchOutcome,
+    DemandDrivenFactorResearchEngine,
+    render_demand_feedback,
+)
 from rdagent.scenarios.gf_quant.strategy.orchestrator import (
     FactorContribution,
     FactorDemand,
@@ -23,6 +30,7 @@ from rdagent.scenarios.gf_quant.strategy.orchestrator import (
     aggregate_factor_contributions,
     derive_factor_demands,
 )
+from rdagent.scenarios.gf_quant.strategy.report import epoch_report, write_epoch_report
 from rdagent.scenarios.gf_quant.strategy.service import (
     StrategyAcceptancePolicy,
     StrategyAcceptanceService,
@@ -42,13 +50,17 @@ __all__ = [
     "BacktestSpec",
     "CompositionSpec",
     "FactorSnapshotItem",
+    "FactorAttemptSummary",
     "FactorContribution",
+    "FactorArtifactCache",
     "FactorDemand",
+    "FactorResearchOutcome",
     "FactorResearchRequest",
     "FactorUniverseSnapshot",
     "FactorWorkingSet",
     "GFQuantOrchestrator",
     "LLMStrategyProposalEngine",
+    "DemandDrivenFactorResearchEngine",
     "OuterEpochConfig",
     "OuterEpochResult",
     "PortfolioResult",
@@ -64,8 +76,11 @@ __all__ = [
     "aggregate_factor_contributions",
     "build_factor_universe_snapshot",
     "build_factor_working_set",
+    "epoch_report",
     "factor_eligibility",
     "derive_factor_demands",
+    "render_demand_feedback",
     "run_portfolio_backtest",
     "strategy_id_for",
+    "write_epoch_report",
 ]

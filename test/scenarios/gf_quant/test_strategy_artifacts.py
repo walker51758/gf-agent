@@ -7,7 +7,13 @@ from pydantic import BaseModel
 
 from rdagent.scenarios.gf_quant.registry import FactorRecord, FactorRegistry
 from rdagent.scenarios.gf_quant.service import EvaluationResult
-from rdagent.scenarios.gf_quant.strategy.artifacts import FactorArtifactSet, materialize_factor_artifact_set
+from rdagent.scenarios.gf_quant.strategy.artifacts import (
+    FactorArtifactCache,
+    FactorArtifactSet,
+    FactorArtifactVersion,
+    artifact_set_id_for,
+    materialize_factor_artifact_set,
+)
 from rdagent.scenarios.gf_quant.strategy.snapshot import build_factor_universe_snapshot, build_factor_working_set
 
 
@@ -131,4 +137,69 @@ def test_materialization_rejects_incomplete_or_tampered_artifacts(tmp_path) -> N
                 "rows": 400,
                 "columns": 4000,
             },
+        )
+
+
+def test_epoch_artifact_cache_materializes_each_factor_once(tmp_path) -> None:
+    working = _working_set(tmp_path)
+    calls = []
+
+    def materializer(**kwargs):
+        calls.append(kwargs)
+        name = kwargs["factor_names"][0]
+        factor = next(value for value in working.factors if value.name == name)
+        version = FactorArtifactVersion(
+            factor_id=factor.factor_id,
+            name=name,
+            family=factor.family,
+            expression=factor.expression,
+            artifact_path=f"G:/strategy_versioned/{name}.parquet",
+            artifact_checksum=("a" if name == "value" else "b") * 64,
+            data_start="2024-01-01",
+            data_end="2025-12-31",
+            rows=500,
+            columns=4000,
+        )
+        return FactorArtifactSet(
+            artifact_set_id=artifact_set_id_for(
+                working.snapshot_id,
+                working.working_set_id,
+                "2024-01-01",
+                "2025-12-31",
+                (version,),
+            ),
+            snapshot_id=working.snapshot_id,
+            working_set_id=working.working_set_id,
+            evaluation_start="2024-01-01",
+            evaluation_end="2025-12-31",
+            created_at="2024-01-01T00:00:00Z",
+            factors=(version,),
+        )
+
+    cache = FactorArtifactCache(
+        working_set=working,
+        evaluation_start="2024-01-01",
+        evaluation_end="2025-12-31",
+        settings=Settings(),
+        remote_artifact_dir="G:/strategy_versioned",
+        materializer=materializer,
+    )
+    first = cache.artifact_set_for(("value", "quality"))
+    second = cache.artifact_set_for(("quality",))
+
+    assert [call["factor_names"] for call in calls] == [("value",), ("quality",)]
+    assert all(call["remote_artifact_dir"] == "G:/strategy_versioned" for call in calls)
+    assert [factor.name for factor in first.factors] == ["value", "quality"]
+    assert [factor.name for factor in second.factors] == ["quality"]
+    assert cache.cached_factor_names == ("quality", "value")
+
+
+def test_epoch_artifact_cache_rejects_original_artifact_directory(tmp_path) -> None:
+    with pytest.raises(ValueError, match="separate from source artifacts"):
+        FactorArtifactCache(
+            working_set=_working_set(tmp_path),
+            evaluation_start="2024-01-01",
+            evaluation_end="2025-12-31",
+            settings=Settings(),
+            remote_artifact_dir="G:/old",
         )
