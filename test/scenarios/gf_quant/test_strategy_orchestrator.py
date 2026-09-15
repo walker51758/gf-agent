@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 
 from rdagent.scenarios.gf_quant.registry import FactorRecord, FactorRegistry
 from rdagent.scenarios.gf_quant.strategy.candidate import BacktestSpec, CompositionSpec, StrategyCandidate
+from rdagent.scenarios.gf_quant.strategy.costs import execution_costs_metrics
 from rdagent.scenarios.gf_quant.strategy.orchestrator import GFQuantOrchestrator, OuterEpochConfig
 from rdagent.scenarios.gf_quant.strategy.registry import StrategyRegistry
 from rdagent.scenarios.gf_quant.strategy.service import (
@@ -39,6 +41,7 @@ def test_outer_epoch_freezes_factors_then_emits_demand_and_researches(tmp_path) 
         returns = pd.Series(0.0002, index=dates)
         return StrategyEvaluation(
             metrics={
+                **execution_costs_metrics(),
                 "observations": 120,
                 "avg_holdings": 20,
                 "annualized_return": -0.01,
@@ -76,7 +79,7 @@ def test_outer_epoch_freezes_factors_then_emits_demand_and_researches(tmp_path) 
             universe="csi_all",
             composition=CompositionSpec(top_n=20),
             factor_names=names,
-            backtest=BacktestSpec(signal_lag=1, cost_bps=10),
+            backtest=BacktestSpec(signal_lag=1),
         )
 
     requests = []
@@ -147,3 +150,10 @@ def test_out_of_snapshot_factor_is_rejected_before_evaluation(tmp_path) -> None:
     assert not evaluated
     assert epoch.strategy_trials[0].result is None
     assert "outside the frozen working set" in epoch.strategy_trials[0].error
+
+
+def test_strategy_cost_is_not_a_candidate_or_orchestrator_parameter() -> None:
+    with pytest.raises(TypeError, match="cost_bps"):
+        BacktestSpec(cost_bps=3.0)
+    with pytest.raises(TypeError, match="fixed_cost_bps"):
+        OuterEpochConfig(fixed_cost_bps=10.0)

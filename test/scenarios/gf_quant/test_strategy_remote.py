@@ -92,7 +92,7 @@ def _fixture(tmp_path):
         composition=CompositionSpec(top_n=3, weighting="equal", weight_cap=0.5),
         factor_names=("value", "quality"),
         rule="equal rank blend",
-        backtest=BacktestSpec(signal_lag=1, cost_bps=10),
+        backtest=BacktestSpec(signal_lag=1),
     )
     settings = SimpleNamespace(
         remote_work_dir=str(tmp_path).replace("\\", "/"),
@@ -119,6 +119,8 @@ def _fixture(tmp_path):
 def test_standalone_strategy_worker_smoke_and_result_parser(tmp_path) -> None:
     evaluator, candidate = _fixture(tmp_path)
     request = evaluator.request_for(candidate)
+    assert request["execution_costs"] == {"buy_bps": 10.0, "sell_bps": 10.0}
+    assert "cost_bps" not in request["candidate"]["backtest"]
     assert "2024-01-02".replace("-", "") in request["portfolio_artifact_path"]
     request["portfolio_artifact_path"] = str(tmp_path / "portfolio.parquet")
     request_path, result_path = tmp_path / "request.json", tmp_path / "result.json"
@@ -154,6 +156,18 @@ def test_strategy_worker_fails_closed_on_provenance_and_coverage(tmp_path) -> No
     with pytest.raises(ValueError, match="cover"):
         run_request(request_path, result_path)
 
+    tampered_cost = json.loads(json.dumps(request))
+    tampered_cost["execution_costs"]["sell_bps"] = 1.0
+    request_path.write_text(json.dumps(tampered_cost), encoding="utf-8")
+    with pytest.raises(ValueError, match="fixed 10/10"):
+        run_request(request_path, result_path)
+
+    candidate_cost = json.loads(json.dumps(request))
+    candidate_cost["candidate"]["backtest"]["cost_bps"] = 0.0
+    request_path.write_text(json.dumps(candidate_cost), encoding="utf-8")
+    with pytest.raises(ValueError, match="candidate backtest"):
+        run_request(request_path, result_path)
+
 
 def test_result_parser_rejects_request_checksum_mismatch(tmp_path) -> None:
     evaluator, candidate = _fixture(tmp_path)
@@ -165,4 +179,17 @@ def test_result_parser_rejects_request_checksum_mismatch(tmp_path) -> None:
     payload["request_checksum"] = "tampered"
 
     with pytest.raises(RuntimeError, match="request checksum"):
+        evaluator._result_from_payload(candidate, request, payload)
+
+
+def test_result_parser_rejects_tampered_cost_metrics(tmp_path) -> None:
+    evaluator, candidate = _fixture(tmp_path)
+    request = evaluator.request_for(candidate)
+    request["portfolio_artifact_path"] = str(tmp_path / "portfolio.parquet")
+    request_path, result_path = tmp_path / "request.json", tmp_path / "result.json"
+    request_path.write_text(json.dumps(request), encoding="utf-8")
+    payload = run_request(request_path, result_path)
+    payload["metrics"]["buy_cost_bps"] = 1.0
+
+    with pytest.raises(RuntimeError, match="fixed execution costs"):
         evaluator._result_from_payload(candidate, request, payload)

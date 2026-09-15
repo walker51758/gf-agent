@@ -7,6 +7,7 @@ import pandas as pd
 
 from rdagent.scenarios.gf_quant.registry import FactorRecord, FactorRegistry
 from rdagent.scenarios.gf_quant.strategy.candidate import BacktestSpec, CompositionSpec, StrategyCandidate
+from rdagent.scenarios.gf_quant.strategy.costs import execution_costs_metrics
 from rdagent.scenarios.gf_quant.strategy.orchestrator import (
     GFQuantOrchestrator,
     OuterEpochConfig,
@@ -14,7 +15,11 @@ from rdagent.scenarios.gf_quant.strategy.orchestrator import (
 )
 from rdagent.scenarios.gf_quant.strategy.registry import StrategyRegistry
 from rdagent.scenarios.gf_quant.strategy.report import epoch_report, write_epoch_report
-from rdagent.scenarios.gf_quant.strategy.service import StrategyAcceptanceService, StrategyEvaluation
+from rdagent.scenarios.gf_quant.strategy.service import (
+    StrategyAcceptancePolicy,
+    StrategyAcceptanceService,
+    StrategyEvaluation,
+)
 
 
 def _factor(factor_id: str, name: str, *, status: str = "accepted") -> FactorRecord:
@@ -35,6 +40,7 @@ def _evaluation(candidate: StrategyCandidate) -> StrategyEvaluation:
     dates = pd.bdate_range("2022-01-03", periods=120)
     return StrategyEvaluation(
         metrics={
+            **execution_costs_metrics(),
             "observations": 120,
             "avg_holdings": 20,
             "annualized_return": -0.01,
@@ -42,7 +48,6 @@ def _evaluation(candidate: StrategyCandidate) -> StrategyEvaluation:
             "max_drawdown": -0.1,
             "annual_turnover": 2.0,
             "signal_lag": candidate.backtest.signal_lag,
-            "cost_bps": candidate.backtest.cost_bps,
             "degenerate": float("nan"),
             "infinite": float("inf"),
             "metrics_by_year": {
@@ -58,12 +63,16 @@ def _evaluation(candidate: StrategyCandidate) -> StrategyEvaluation:
     )
 
 
-def _run_epoch(tmp_path, *, research_results: tuple[object, ...] = ()) -> OuterEpochResult:
+def _run_epoch(
+    tmp_path, *, research_results: tuple[object, ...] = (), policy: StrategyAcceptancePolicy | None = None
+) -> OuterEpochResult:
     factors = FactorRegistry(tmp_path / "factors.sqlite")
     factors.upsert(_factor("f1", "value"))
     factors.upsert(_factor("f2", "quality"))
 
-    service = StrategyAcceptanceService(StrategyRegistry(tmp_path / "strategies.sqlite"), _evaluation)
+    service = StrategyAcceptanceService(
+        StrategyRegistry(tmp_path / "strategies.sqlite"), _evaluation, policy=policy
+    )
 
     def propose(context):
         names = tuple(factor.name for factor in context.working_set.factors[:2])
@@ -72,7 +81,7 @@ def _run_epoch(tmp_path, *, research_results: tuple[object, ...] = ()) -> OuterE
             universe="csi_all",
             composition=CompositionSpec(top_n=20),
             factor_names=names,
-            backtest=BacktestSpec(signal_lag=1, cost_bps=10),
+            backtest=BacktestSpec(signal_lag=1),
         )
 
     rounds = iter(research_results * 4)
@@ -125,7 +134,8 @@ def test_report_covers_every_layer(tmp_path) -> None:
     trial = report["strategy_trials"][0]
     assert sorted(trial["factor_names"]) == ["quality", "value"]
     assert trial["signal_lag"] == 1
-    assert trial["cost_bps"] == 10
+    assert trial["execution_costs"] == execution_costs_metrics()
+    assert report["execution_costs"] == execution_costs_metrics()
     assert trial["annual_gate_requirements"] == {
         "min_valid_years": 2,
         "min_positive_return_years": 0,
@@ -136,6 +146,17 @@ def test_report_covers_every_layer(tmp_path) -> None:
 
     assert sorted(item["factor_name"] for item in report["factor_contributions"]) == ["quality", "value"]
     assert report["factor_demands"]
+
+
+def test_report_states_the_fixed_cost_contract(tmp_path) -> None:
+    epoch = _run_epoch(tmp_path, policy=StrategyAcceptancePolicy())
+    trial = epoch_report(epoch)["strategy_trials"][0]
+
+    assert trial["execution_costs"] == {
+        "buy_cost_bps": 10.0,
+        "sell_cost_bps": 10.0,
+        "round_trip_cost_bps": 20.0,
+    }
 
 
 def test_report_headline_metrics_are_bounded(tmp_path) -> None:
@@ -151,7 +172,12 @@ def test_report_headline_metrics_are_bounded(tmp_path) -> None:
         "avg_holdings",
         "observations",
         "signal_lag",
-        "cost_bps",
+        "buy_cost_bps",
+        "sell_cost_bps",
+        "round_trip_cost_bps",
+        "buy_turnover",
+        "sell_turnover",
+        "total_transaction_cost",
     }
     assert set(trial["metrics"]) <= allowed
     # The full metrics dict is never embedded: the registry is the detailed record.

@@ -1,191 +1,269 @@
-# GF 基本面量化智能体：策略层设计与架构评估
+# GF 基本面量化智能体：因子到组合的双时间尺度策略层
 
-状态：**设计稿 + 全链路骨架**。本文档回答交接文档中的两个未决问题——
-“策略层应采用一体式端到端还是分层式模块化”，以及“第一批正式代码先落什么”。
-批次状态见第 5 节；批次 3（策略门槛校准）与真实的远端/LLM 联调仍未开始。
+状态：**已实现并完成真实 API + 远端回测验证（2026-09-01）**。
 
----
+这份文档说明新增策略层如何工作、它如何严格复用并联动现有因子层，以及一个
+`epoch` 内外两层循环实际发生什么。它描述的是当前代码的运行边界，不是另一套
+平行系统。
 
-## 1. 目标与锚定用例
+## 1. 一句话定位
 
-当前系统是一个**纯单因子挖掘工具**：提出单因子 → DSL 实现 → 远端评价 →
-家族化门槛与去重 → 入库 → 反馈。目标是升级为**全链路基本面量化智能体**：
+原系统解决的是“发现并验收一个因子”。新增策略层解决的是“从一组已经登记的因子
+中，构建、回测、验收并登记一个可交易组合；再把组合层的证据反馈给下一轮因子研究”。
 
+整体链路如下：
+
+```mermaid
+flowchart TB
+    subgraph FACTOR["因子层 · 现有循环"]
+        direction LR
+        F1["LLM 因子假设"] --> F2["DSL 编码"] --> F3["远端因子评价"] --> F4["因子验收 / 去重"] --> FR[("FactorRegistry")]
+    end
+
+    subgraph EPOCH["策略层 · 一个冻结 epoch 的内层循环"]
+        direction LR
+        S1[("FactorSnapshot<br/>data_cutoff + checksum")] --> S2["FactorWorkingSet<br/>16 core + 8 conditional"]
+        S2 --> S3["LLM StrategyCandidate<br/>选择因子 + 声明式组合规则"]
+        S3 --> S4["远端组合回测<br/>滞后 · 成本 · 换手"]
+        S4 --> S5["策略 gate / 去重"] --> SR[("StrategyRegistry")]
+        S5 --> X["消融归因<br/>portfolio feedback"]
+    end
+
+    FR -->|"按 data_cutoff 冻结"| S1
+    SR -.->|"历史策略供去重"| S5
+
+    subgraph NEXT["epoch 边界 · 只在下一轮生效"]
+        direction LR
+        D["FactorDemand<br/>缺口 · 角色 · 优先级"] --> NB["下一 epoch<br/>重新冻结 snapshot / working set"]
+    end
+
+    X -->|"定向 / 探索因子研究"| D
+    D -->|"复用现有因子循环"| F1
+    FR -->|"新因子只能在下一 epoch 可见"| NB
+    X -.->|"组合反馈进入下一 epoch"| NB
+    NB --> S1
+
+    classDef factor fill:#E8F1FF,stroke:#3973B8,color:#12314D
+    classDef strategy fill:#EAF7F0,stroke:#3D8B63,color:#173B28
+    classDef feedback fill:#FFF3D6,stroke:#C68A17,color:#513700
+    class F1,F2,F3,F4,FR factor
+    class S1,S2,S3,S4,S5,SR strategy
+    class X,D,NB feedback
 ```
-因子发现 → 因子整合（组合规则） → 组合评价 → 组合登记 → 反馈
-```
 
-策略层不是“再多一个算子”，而是一条新的研究闭环。它必须复用既有的
-候选对象、远端执行、PIT 财务数据、中信一级行业面板、家族化基准和审计元数据，
-但**另设**策略候选、策略指标、策略登记和策略门槛——单因子 IC 标准不能直接
-套在组合策略上。
+实线表示本轮主流程，虚线表示只读查询或传递到下一 `epoch` 的反馈；因子研究仍复用
+上方的现有因子循环，不会把新因子倒灌进正在运行的策略试验。
 
-锚定用例选择**中证自由现金流指数（932400）**的编制规则。原因：
+这是一种“分层骨架 + 受限声明式规则”的实现：LLM 可以选择因子、组合规则和参数，
+但不能生成回测代码。选股、加权、调仓、成本、滞后和评价都由确定性框架执行，避免
+把前视偏差或不可复现逻辑重新引入系统。
 
-1. 它是一条**完全由基本面规则构成**的组合策略，不含价量信号，正好检验
-   “因子整合层”对基本面策略的表达能力；
-2. 它的每一步（筛选、排序、加权、权重上限、定期调样）都是**确定性规则**，
-   可逐条写成可单测的契约，能直接暴露前视偏差与 PIT 错误；
-3. 它是市场上真实存在的可比基准（自由现金流率加权而非市值加权），
-   可以作为后续组合评价的基准指数之一。
+## 2. 与原有因子层的关系
 
-其编制规则映射到本系统的概念如下（具体数值参数以官方编制方案为准，
-全部做成可配置项，不写死）：
+策略层**不修改** `FactorCandidate` 的语义，也不把策略指标混入因子 registry。
+二者通过明确的只读输入和反馈对象连接。
 
-| 指数规则 | 系统中的位置 |
+| 因子层既有对象/入口 | 策略层如何使用 | 不做什么 |
+|---|---|---|
+| `rdagent/app/gf_rd_loop/factor.py` | 继续负责因子提出、编码、远端评价、验收和登记 | 不被策略层替换 |
+| `FactorRegistry` | 为每个 epoch 提供已登记因子的 ID、表达式、方向、家族、指标、远端产物路径和 checksum | 策略层不直接篡改 registry 中的历史因子记录 |
+| `FactorCandidate` | 仍是单因子研究对象 | 不给它增加策略字段，也不拿单因子 IC 门槛评价策略 |
+| 因子 DSL / 远端 worker | 仍用于因子研究；策略研究提出的新因子最终仍走同一条因子验收链 | 不由 LLM 编写新的回测脚本 |
+| `FactorAcceptanceService` | 接收由策略需求驱动的定向/探索因子研究产物 | 不因一次策略失败自动放宽因子门槛 |
+
+新增策略域位于 `rdagent/scenarios/gf_quant/strategy/`，有自己的
+`StrategyCandidate`、`StrategyAcceptanceService` 和 `StrategyRegistry`。
+这是必要的隔离：一个因子的 RankIC、覆盖率、换手和一个组合的年化、回撤、Sharpe、
+成本后超额收益是不同层级的证据。
+
+## 3. 核心对象与数据契约
+
+### 3.1 因子快照：切断当前轮与未来信息
+
+`FactorUniverseSnapshot` / `FactorSnapshotItem` 将某个 `data_cutoff` 时刻的因子
+登记表冻结为不可变清单。每个条目携带因子 ID、名称、家族、表达式、方向、指标、
+远端 artifact 路径和 checksum；快照本身也有 ID 与 checksum。
+
+快照不是按“最早到最新”机械截断：它保留历史 registry 的可用因子宇宙。随后
+`FactorWorkingSet` 按准入层级、相关性簇、经济主题、稳定性和上一轮组合反馈选择
+可供策略提案的较小集合。当前默认工作集为 24 个：16 个 `core`，8 个
+`conditional`。`conditional` 的含义是技术和 PIT 条件合格、但可能更适合作为组合
+互补项或风险控制项，不能因为固定单因子多空规则表现一般而被永久排除。
+
+快照一经写入便不再改动。当轮因子研究产生的记录只能被下一轮新快照看到，绝不
+倒灌到已经开始的策略试验。
+
+### 3.2 策略候选：声明式而非可执行代码
+
+`StrategyCandidate` 由 `proposal.py` 中的 `LLMStrategyProposalEngine` 生成，核心字段是：
+
+| 字段 | 含义 |
 |---|---|
-| 样本空间：中证全指 | 股票池（universe）声明，属策略候选字段 |
-| 剔除过去一年日均成交金额后 20% | 流动性筛选 → 可交易性掩码 |
-| 剔除金融、房地产行业 | 行业筛选 → 复用中信一级行业面板 |
-| 连续 N 年经营现金流为正 / 自由现金流为正 | PIT 财务筛选 → 可投资性掩码 |
-| 自由现金流率 = 自由现金流 ÷ 企业价值 | 组合规则的排序键（score 面板） |
-| 按自由现金流率取前 100 | `CompositionSpec.top_n` |
+| `factor_names` | 2–8 个、且必须属于当前冻结 working set 的因子名称 |
+| `rule` | 声明式选样/排序规则；可与因子分数组合，不是 Python 回测代码 |
+| `universe` | 股票池声明 |
+| `CompositionSpec` | `top_n`、`equal`/`rank`/`proportional` 加权、可选单票上限 |
+| `BacktestSpec` | 至少 1 日信号滞后、年化交易日数；不含任何成本字段 |
+| `hypothesis` / `metadata` | 经济逻辑、提案来源和审计元数据 |
+
+组合构造函数 `build_target_weights` 将截面分数与可投资掩码变成目标权重：筛选后
+取 Top-N，按等权、名次或分数比例分配，再以确定性的 water-filling 处理权重上限。
+若“持仓数 × 权重上限 < 1”，剩余部分明确是现金，不会违反单票上限来强行满仓。
+
+`BacktestSpec.signal_lag` 的下限是 1；`0` 会在对象构造和验收处被拒绝。交易成本不是
+策略参数，而是 `costs.py` 定义的系统执行契约：中国 A 股简化费率固定为买入 10 bps、
+卖出 10 bps，完整往返 20 bps。它不能由 LLM、candidate、CLI、环境变量、settings、
+orchestrator config 或 acceptance policy 覆盖；旧 candidate payload 中的 `cost_bps` 仅在
+本地读取时被忽略。
+
+本地回测按每次权重变化分别计算 `max(new-old, 0).sum()` 与
+`max(old-new, 0).sum()`，初次建仓只扣买入费、清仓只扣卖出费、换仓同时扣两侧。远端
+request 在 candidate 之外注入顶层 `execution_costs={buy_bps: 10, sell_bps: 10}`；独立
+worker 必须核验字段和值完全匹配才执行。验收门核对 evaluation metrics 中的
+`buy_cost_bps=10`、`sell_cost_bps=10`、`round_trip_cost_bps=20`，registry 和 epoch report
+同时保存这三个事实，因而模型无法通过报价或省略成本影响结果。
+
+### 3.3 策略评价和登记
+
+每个候选由 `EpochBoundStrategyService` 绑定到**刚刚冻结的** snapshot、working set 和
+评价窗口，再调用 `RemoteStrategyEvaluator`。远端前先由 `artifacts.py` 仅物化候选实际
+引用的因子到独立目录，并记录清单和 checksum；远端
+`scripts/gf_quant_strategy_worker.py` 输出固定双边成本后的收益、年化/超额年化、Sharpe、最大回撤、
+换手、持仓数、逐年指标、日度收益摘要和逐因子消融贡献。
+
+返回结果进入 `StrategyAcceptanceService`：
+
+1. 先执行 fail-closed 门槛：滞后、固定成本口径、覆盖、持仓数、换手、回撤、年度
+   稳定性和指标是否完整；
+2. 通过门槛后，将日度组合收益与已接受策略做相关性去重；
+3. 写入独立的 `StrategyRegistry`，保存规格、引用因子、指标、远端 artifact/checksum、
+   年度门槛、去重依据和紧凑收益轨迹；
+4. 状态为 `accepted`、`duplicate` 或 `rejected`。`duplicate` 表示表现相近、已能由
+   一个 accepted 策略覆盖，并不等于回测失败。
+
+策略服务仅只读查询 `FactorRegistry`，把每个引用因子的 ID、家族和状态存入策略元数据，
+从而让一个组合可以追溯到它使用的因子。
+
+## 4. 双时间尺度循环：实际时序
+
+### 内层：在一个固定因子世界中试组合
+
+`GFQuantOrchestrator.run_epoch()` 按以下顺序运行：
+
+1. 用本轮 `data_cutoff` 从 `FactorRegistry` 冻结 snapshot，并生成 working set；
+2. 将 snapshot、working set、epoch ID 及 `evaluation_start/end` 绑定到策略服务；
+3. LLM 每次只看当前 working set、先前试验摘要和同一评价窗口，提出一个
+   `StrategyCandidate`；
+4. 校验候选引用范围，远端回测，策略 gate，策略去重，并登记结果；
+5. 重复至本轮试验预算（默认 10 条，CLI 可调）。
+
+因此，同一 epoch 的所有策略共享完全相同的因子快照。哪怕中途有新因子被研究出来，
+它也不可能被插入本轮 working set。
+
+### 外层：从组合失败和消融中改进因子研究
+
+策略试验完成后，`aggregate_factor_contributions()` 聚合各组合中“去掉某因子”带来的
+边际年化、Sharpe、回撤和换手变化。`derive_factor_demands()` 将弱贡献、负贡献或明确
+的组合缺口转换为 `FactorDemand`：包括目标家族、经济主题、预期角色、优先级、证据和
+应避免的因子 ID。
+
+`DemandDrivenFactorResearchEngine` 随后执行两类研究：
+
+| 研究类型 | 输入 | 用途 |
+|---|---|---|
+| 定向研究（targeted） | `FactorDemand` | 针对组合暴露不足、替代/互补需求提出因子 |
+| 独立探索（exploratory） | 与具体 demand 无关 | 避免研究只在既有局部最优附近打转 |
+
+这些研究仍复用原来的因子提案、DSL、远端因子 worker、因子验收和因子 registry。外层
+不会把未通过因子 gate 的候选直接塞进策略层；它只把“策略层发现了什么缺口”作为下一次
+因子研究的优先级信息。
+
+当 epoch 结束时，组合消融的有限数值会留在 orchestrator 的
+`portfolio_feedback` 中。下一次 `run_epoch()` 才用它重新挑选 working set：正贡献因子
+优先，负贡献因子后置，无证据者保留原有质量排序。反馈不会改写旧快照，因此整条链仍可
+复现。
+
+## 5. 评价窗口、PIT 与跨 epoch 约束
+
+多 epoch 运行必须提供各轮自己的 `data_cutoff`、`evaluation_start` 和
+`evaluation_end`。`--epoch-windows` JSON 文件由 `load_epoch_windows()` 读取，并强制：
+
+* 每轮窗口字段齐全且为 ISO 日期；
+* 评价开始不晚于结束；
+* 后一轮三个日期字段都不倒退；
+* 后一轮评价窗口不与前一轮重叠。
+
+策略服务会根据窗口跨越的自然年数调整年度稳定性 gate：单年窗口要求 1 个有效且正收益
+年度；多年度窗口维持更严格要求。这样不会因为“单年窗口不可能满足两年门槛”而产生
+结构性误拒绝。
+
+## 6. 运行入口、输入与输出
+
+统一 CLI 入口是：
+
+```powershell
+python -m rdagent.app.cli strategy `
+  --epochs 2 `
+  --trials-per-epoch 2 `
+  --targeted-factor-rounds 1 `
+  --exploratory-factor-rounds 1 `
+  --epoch-windows git_ignore_folder/strategy_epoch_windows.json `
+  --report-dir artifacts/live/strategy_epochs `
+  --snapshot-dir git_ignore_folder/gf_quant/snapshots
+```
+
+每个 epoch 会产生三类审计产物：
+
+| 产物 | 内容 | 作用 |
+|---|---|---|
+| snapshot JSON | 因子条目、`data_cutoff`、snapshot checksum | 证明本轮可见因子集合 |
+| epoch report JSON | 策略规格、状态、gate、指标、贡献、demand、因子研究摘要 | 证明内外循环的输入输出 |
+| registry / 远端 artifact | accepted/duplicate/rejected 记录、因子溯源、远端路径和 checksum | 支持复跑、去重和复核 |
+
+epoch 内的单条试验或远端请求失败会写入该条/该轮报告，不会丢弃之前已完成的 epoch；
+这让长时间研究可以继续运行，同时保留故障证据。
+
+## 7. 用中证自由现金流指数理解组合规则层
+
+中证自由现金流指数是一个很好的“策略规格，而非新因子”的例子。其具体样本数、权重
+上限和调样月份必须以官方编制方案为准，系统不把未核实数值写死；但其规则可映射为：
+
+| 指数思想 | 系统表达 |
+|---|---|
+| 指定股票池 | `StrategyCandidate.universe` |
+| 流动性、行业、连续现金流等条件 | `rule` 对应的可投资掩码 |
+| 自由现金流率排序 | 截面 score 或基本面规则 |
+| 取排名前 N | `CompositionSpec.top_n` |
 | 自由现金流率加权 | `CompositionSpec.weighting="proportional"` |
-| 单个样本权重上限 | `CompositionSpec.weight_cap` |
-| 定期调样 | 调仓频率（组合规则的再生成日期） |
+| 单票权重上限 | `CompositionSpec.weight_cap` |
+| 定期调样与滞后执行 | 调仓规则 + `BacktestSpec.signal_lag` |
 
-> 注：样本数量（50/100）、权重上限具体数值、调样月份等细节需对照中证指数
-> 官方《编制方案》原文确认后固化，本设计不在代码中假设这些数值。
+这也解释了为何策略层不是“让 LLM 直接写指数回测”：LLM 负责提出一份可审阅规格，
+框架负责无前视地执行同一份规格。
 
-## 2. 三条路径的对比
+## 8. 已验证的运行事实
 
-| 维度 | 一体式端到端 | 分层式模块化 | 折中（分层骨架 + 受限 DSL） |
-|---|---|---|---|
-| 表达能力 | 最强：LLM 直接产出策略代码 | 受限：只能用内置组合规则 | 较强：内置规则 + 白名单表达式 |
-| 可审计性 | 差：回测逻辑在生成代码里，每次都不同 | 最好：每层确定性、可单测 | 好：规则层确定，表达式白名单可枚举 |
-| 前视 / PIT 风险 | 高：LLM 生成的回测代码需逐份人工核验 | 低：滞后与 PIT 在框架层强制 | 低：滞后在框架层强制 |
-| 失败定位 | 难：一次失败可能是因子、权重或回测任一层 | 易：分层归因 | 易 |
-| 复用已接受因子库 | 弱 | 强（策略候选直接引用因子登记表） | 强 |
-| 策略去重 | 难（无稳定比较对象） | 易（持仓/收益轨迹即签名） | 易 |
-| 单次评估成本 | 高（每次全量回测） | 低（规则层本地可跑，回测独立） | 低 |
-| 与现有家族化验收的兼容性 | 差 | 好 | 好 |
+在 2026-09-01 的真实 API 与远端 worker 运行中，系统完成了两个不重叠的单年 epoch：
 
-**结论：采用折中路径**——分层式模块化作为骨架，组合规则层同时接受
-“参数化内置规则”与“受限表达式”。
+* 2024 epoch 的两条组合年化为 14.99% 与 23.59%；
+* 2025 epoch 的两条组合年化为 56.84% 与 53.31%；
+* 两轮策略均有远端 artifact 路径与 checksum；
+* `pct_change(adjclose, 1)` 在真实定向因子研究中成功执行；
+* Epoch 0 研究得到的新因子只在 Epoch 1 snapshot 出现；Epoch 1 的组合反馈非空；
+* 已接受策略 `lowvolliqrevvalue_20260901_t00` 的两年验证年化为 45.20%，
+  超额年化 21.43%，Sharpe 1.303。
 
-理由：
+最新 epoch 中标为 `duplicate` 的策略并非 gate 失败，而是与已登记的 accepted 策略
+收益轨迹高度相似。这说明策略 registry 的去重机制正在生效。
 
-1. 基本面策略的规则性很强。选样条件、排序键、加权方式本质上都是规则，
-   而不是需要 LLM 即兴编写的逻辑；把它们写成确定性代码后，LLM 的职责
-   退化为“选择规则与参数”，可验证性大幅提高。
-2. 端到端生成回测代码的最大风险（前视、成本遗漏、不可复现）正是本系统
-   已有验收体系要消灭的东西，不能在新闭环里重新引入。
-3. 纯分层会限制表达力，因此保留一段白名单 DSL（组合规则表达式），
-   与现有因子 DSL 同一套“窗口/位移必须是正整数字面量、逐字段白名单”的
-   约束哲学。
+## 9. 当前边界与后续配置决策
 
-## 3. 目标架构（分层契约）
+这套机制已经闭环，但研究口径仍应由使用者配置，而不是由 LLM 暗中决定：基准指数与
+股票池、金融地产处理、调仓频率、停牌/涨跌停处理、行业/风格约束、训练验证测试切分，
+以及策略去重阈值。交易成本不在这些可配置口径中：系统固定买入 10 bps、卖出 10 bps
+（见 3.2），策略智能体和运行调用方都不能修改。冲击成本等更细模型不在当前简化契约内。
+中证自由现金流规则也应在取得官方方案后再作为
+某个可复用的正式策略模板固化。
 
-```
-┌─ 因子层（已有，不动）─────────────────────────────────────┐
-│ FactorCandidate → 远端 DSL 评估 → 家族门槛/去重 → FactorRegistry │
-└──────────────────────────────┬───────────────────────────┘
-                               │  已接受因子面板 / 规则用基本面面板
-┌──────────────────────────────▼───────────────────────────┐
-│ 组合规则层（第一批，纯本地、确定性）                        │
-│   score 面板 + eligible 掩码 → CompositionSpec → 目标权重    │
-└──────────────────────────────┬───────────────────────────┘
-┌──────────────────────────────▼───────────────────────────┐
-│ 组合评价层（第一批本地引擎；第二批迁到远端 worker）           │
-│   目标权重 + 个股收益 → 信号滞后 + 成本 → 组合指标与逐年分解   │
-└──────────────────────────────┬───────────────────────────┘
-┌──────────────────────────────▼───────────────────────────┐
-│ 策略登记层（第一批）                                       │
-│   StrategyCandidate → 验收门(fail-closed) + 策略去重         │
-│   → StrategyRegistry（独立表，不动 factors 表）              │
-└──────────────────────────────────────────────────────────┘
-```
-
-关键约定：
-
-* **面板方向与远端 worker 完全一致**：`pd.DataFrame`，`index=dt`（交易日）、
-  `columns=symbol`。策略层不重新发明面板格式。
-* **组合规则层是纯函数**：输入 score / eligible 面板与规格，输出目标权重面板。
-  没有任何 I/O，也没有任何日期推断——调样日期由调用方给定。
-* **信号滞后在评价层强制**：`t` 日生成的目标权重最早在 `t + signal_lag`
-  生效，`signal_lag >= 1` 由验收门兜底，不允许 0（0 即前视）。
-* **策略去重复用因子去重器**：`FactorDeduplicator` 本来就接受
-  `values`（横截面值）与 `return_profile`（日度收益序列）两个可选序列。
-  策略的日度组合收益序列填入 `return_profile`，即得到与因子完全一致的
-  相关性阈值/最小重叠语义，不需要新写一套去重逻辑。
-
-## 4. 第一批已实现的内容
-
-新增 `rdagent/scenarios/gf_quant/strategy/`，**不修改任何现有业务代码**：
-
-| 模块 | 内容 |
-|---|---|
-| `candidate.py` | `StrategyCandidate`：策略候选规格（引用的因子、组合规则、调仓、成本、约束），独立于 `FactorCandidate`，二者不混用字段 |
-| `composition.py` | `CompositionSpec` + `build_target_weights`：截面打分 → 筛选 → Top-N → 等权/名次/比例加权 → 权重上限 |
-| `backtest.py` | `BacktestSpec` + `run_portfolio_backtest`：信号滞后、单边换手、按 bps 计成本、年化收益/波动/Sharpe/最大回撤/换手/覆盖率与逐年分解 |
-| `registry.py` | `StrategyRegistry`：独立 SQLite 表 `strategies`，与 `factors` 表同一套记录/时间戳风格 |
-| `service.py` | `StrategyAcceptanceService`：fail-closed 验收门（滞后、成本、成分数、覆盖、换手、指标）+ 权重/收益轨迹去重 + 登记 |
-
-设计取舍（写代码时定下的）：
-
-* **等权是默认加权方式**，`proportional`（按打分比例加权）与 `rank`
-  （按名次加权）是显式选项。比例加权才是自由现金流指数的口径，但它在
-  打分有极端值时最不稳定，所以不作为默认值。
-* **权重上限用确定性的迭代注水（water-filling）实现**：逐轮冻结超过上限的
-  样本，并把超额按剩余样本原权重比例重分配。若 `持仓数 × 上限 < 1`，无法
-  满仓的部分明确保留为现金，不会为了凑满 100% 而突破单票上限。
-* **成本按单边换手 × bps 计**，双边成本由调用方把 bps 翻倍。这让
-  “成本为 0” 显式表示“未计成本”，验收门可以据此拒绝。
-* **验收门 fail-closed**：缺少年度指标、滞后为 0、成本未设置、成分数不足
-  都判不通过，而不是跳过；跳过必须显式出现在元数据里。
-* **策略登记表与因子登记表分离**，但共享 `factor_id`/`strategy_id` 的
-  命名与生成方式（sha256 前 16 位），便于在元数据里互相引用。
-
-## 5. 批次状态
-
-1. **批次 2：远端组合回测 — 已实现**。`scripts/gf_quant_strategy_worker.py`
-   是单文件交付物、不 import 本地包；输入 = 目标权重规则 + 已物化的因子
-   面板，输出 = 组合指标、逐年分解、日度收益与因子贡献（消融）紧凑摘要。
-   `rdagent/scenarios/gf_quant/strategy/remote.py` 是本地请求/结果适配器，
-   `artifacts.py` 先把工作集因子重新物化到独立远端目录并记录校验和清单。
-2. **批次 3：策略验收标准校准 — 未开始**。`StrategyAcceptancePolicy` 仍是
-   显式的开发门槛；需要先有一个基准策略池（等权市值组合、自由现金流
-   指数规则复刻等）才能像因子侧那样校准。
-3. **批次 4：LLM 策略提案 — 已实现**。`proposal.py` 的
-   `LLMStrategyProposalEngine` 只产出 `StrategyCandidate` 规格与声明式
-   组合规则，绝不产出回测代码。
-4. **批次 5：策略反馈闭环接入研究循环 — 已实现（本地可测骨架 +
-   远端装配）**。`orchestrator.py` 是双时间尺度外循环：先在冻结工作集上
-   跑完内层组合试验，再由 `aggregate_factor_contributions` /
-   `derive_factor_demands` 把失败与消融结果翻译成 `FactorDemand`。
-   `factor_research.py` 的 `DemandDrivenFactorResearchEngine` 实现外循环的
-   因子研究端：把需求渲染成提案反馈、复用既有因子提案与验收服务、跳过
-   已登记因子名、返回可序列化摘要。`report.py` 把每个 epoch 落成紧凑
-   JSON 报告，`rdagent/app/gf_rd_loop/strategy.py` 负责真实装配（LLM 提案、
-   远端组合评价、需求驱动因子研究）与多 epoch 运行。
-
-   两个值得记录的装配约束：
-
-   * 快照只在 `run_epoch` 内部冻结，而远端评价器必须引用**这个**快照
-     （`created_at` 进入校验和，事后重建会得到不同 id）。因此 orchestrator
-     会在冻结后调用服务的 `bind_epoch` 钩子（可选，duck-typed），见
-     `GFQuantOrchestrator._bind_epoch`。
-   * `RemoteStrategyEvaluator` 要求因子清单与候选引用的因子**完全一致**，
-     而同一 epoch 内每个试验会选不同子集，所以因子清单按候选逐个物化，
-     而不是每个 epoch 一次。
-   * epoch 间会携带上一轮组合消融的边际年化收益作为 working-set 选择提示：
-     正贡献因子优先、无证据因子保持质量排序、负贡献因子后置。该提示不修改
-     当前已冻结快照，只影响下一轮的 working set，并写入 working-set provenance。
-   * `run_strategy_epochs` 默认可以复用同一历史窗口；需要推进研究时间时，
-     通过 `epoch_window_factory` 或 CLI 的 `--epoch-windows` 传入每个 epoch
-     独立的 `data_cutoff`、`evaluation_start` 和 `evaluation_end`，从而把 PIT
-     截止日与组合评价窗口一并纳入报告。
-
-## 6. 需要用户确认的关键口径
-
-1. **基准指数与股票池**：组合评价以哪个指数为基准（中证全指 /
-   自由现金流指数 / 其他），股票池是否同样剔除金融地产。
-2. **调仓频率**：月度 / 季度，以及调样生效日（公告后第 N 个交易日）。
-3. **成本口径**：单边 bps、是否含冲击成本、停牌/涨跌停不可成交如何处理。
-4. **风险与暴露约束**：是否强制行业中性（中信一级）、个股权重上限数值、
-   是否限制风格暴露。
-5. **回测窗口与划分**：是否沿用 2020—2023 单次筛选 + 逐年观察，
-   以及训练/验证/测试的划分方式（`split.py` 已有可复用的无泄漏切分）。
-6. **策略去重阈值**：是否沿用 0.88 的绝对相关与 100 天最小重叠。
-7. **官方编制方案数值**：自由现金流指数的样本数、权重上限、调样月份，
-   需要官方 PDF 确认后固化为默认配置。
+因子家族（基本面与价量）产出数量失衡属于独立问题；本策略层只消费经登记的因子，并
+通过 `FactorDemand` 提供组合层面的研究方向，不承担该家族配额问题的调度职责。

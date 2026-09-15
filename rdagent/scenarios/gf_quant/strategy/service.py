@@ -26,11 +26,17 @@ from rdagent.scenarios.gf_quant.dedup import DedupResult, FactorDeduplicator, Fa
 from rdagent.scenarios.gf_quant.registry import FactorRegistry
 from rdagent.scenarios.gf_quant.strategy.backtest import PortfolioResult
 from rdagent.scenarios.gf_quant.strategy.candidate import StrategyCandidate
+from rdagent.scenarios.gf_quant.strategy.costs import (
+    BUY_COST_BPS,
+    COST_TOLERANCE_BPS,
+    ROUND_TRIP_COST_BPS,
+    SELL_COST_BPS,
+    execution_costs_metrics,
+)
 from rdagent.scenarios.gf_quant.strategy.registry import StrategyRecord, StrategyRegistry, strategy_id_for
 
 PROFILE_KEY = "return_profile"
 """Registry metadata key holding the compact daily return trace used for dedup."""
-
 
 @dataclass(frozen=True)
 class StrategyAcceptancePolicy:
@@ -38,10 +44,12 @@ class StrategyAcceptancePolicy:
 
     The defaults are development-grade, not calibrated; they exist so a missing
     threshold never silently means "accept anything".
+
+    The execution-cost contract is not a policy knob. Every evaluation must
+    prove that it used the system-owned 10 bps buy / 10 bps sell rates.
     """
 
     min_signal_lag: int = 1
-    require_cost: bool = True
     min_observations: int = 100
     min_avg_holdings: float = 5.0
     min_sharpe: float = 0.30
@@ -51,6 +59,12 @@ class StrategyAcceptancePolicy:
     max_annual_turnover: float = 12.0
     min_valid_years: int = 2
     min_positive_return_years: int = 0
+
+    @staticmethod
+    def execution_costs() -> dict[str, float]:
+        """Describe the immutable cost facts every evaluation must report."""
+
+        return execution_costs_metrics()
 
     @staticmethod
     def _finite(metrics: Mapping[str, Any], name: str) -> float | None:
@@ -156,14 +170,18 @@ class StrategyAcceptancePolicy:
                     lambda value: value >= self.min_excess_annualized_return,
                 )
             )
-        if self.require_cost:
-            # cost_bps == 0 means "no cost model at all", which is a modelling
-            # omission rather than a cheap strategy.
+        for failure, key, required in (
+            ("strategy_buy_cost_not_fixed", "buy_cost_bps", BUY_COST_BPS),
+            ("strategy_sell_cost_not_fixed", "sell_cost_bps", SELL_COST_BPS),
+            ("strategy_round_trip_cost_not_fixed", "round_trip_cost_bps", ROUND_TRIP_COST_BPS),
+        ):
             checks.append(
                 (
-                    "strategy_cost_missing",
-                    None if candidate.backtest.cost_bps <= 0 else candidate.backtest.cost_bps,
-                    lambda value: value > 0,
+                    failure,
+                    self._finite(metrics, key),
+                    lambda value, expected=required: math.isclose(
+                        value, expected, rel_tol=0.0, abs_tol=COST_TOLERANCE_BPS
+                    ),
                 )
             )
         failures = [name for name, value, predicate in checks if value is None or not predicate(value)]
@@ -356,6 +374,7 @@ class StrategyAcceptanceService:
             "annual_gate_requirements": self.policy.annual_requirements(
                 self._expected_evaluation_years
             ),
+            "execution_costs": self.policy.execution_costs(),
         }
         if not passed:
             record = self.registry.upsert(

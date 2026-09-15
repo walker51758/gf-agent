@@ -1,8 +1,9 @@
 """LLM strategy proposal engine for one frozen factor working set.
 
-The model produces declarative JSON only.  It may choose factors and portfolio
+The model produces declarative JSON only. It may choose factors and portfolio
 parameters, but it never writes executable backtest code; deterministic local
-or remote framework code remains responsible for composition, lag and costs.
+or remote framework code remains responsible for composition, lag and the
+immutable system execution-cost contract.
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ import re
 from typing import Any, Mapping
 
 from rdagent.scenarios.gf_quant.strategy.candidate import BacktestSpec, CompositionSpec, StrategyCandidate
+from rdagent.scenarios.gf_quant.strategy.costs import BUY_COST_BPS, SELL_COST_BPS
 from rdagent.scenarios.gf_quant.strategy.orchestrator import StrategyProposalContext
 
 
@@ -41,7 +43,6 @@ class LLMStrategyProposalEngine:
         max_factors: int = 6,
         min_top_n: int = 20,
         max_top_n: int = 100,
-        default_cost_bps: float = 10.0,
     ) -> None:
         if api_backend is None:
             from rdagent.oai.llm_utils import APIBackend
@@ -51,15 +52,12 @@ class LLMStrategyProposalEngine:
             raise ValueError("factor bounds must satisfy 1 <= min <= max <= 8")
         if not 1 <= min_top_n <= max_top_n:
             raise ValueError("top_n bounds are invalid")
-        if default_cost_bps <= 0:
-            raise ValueError("default_cost_bps must be positive")
         self.api_backend = api_backend
         self.universe = universe
         self.min_factors = min_factors
         self.max_factors = max_factors
         self.min_top_n = min_top_n
         self.max_top_n = max_top_n
-        self.default_cost_bps = default_cost_bps
 
     @staticmethod
     def _factor_payload(context: StrategyProposalContext) -> list[dict[str, Any]]:
@@ -122,11 +120,13 @@ Return exactly one JSON object with these keys:
 - weighting: one of equal, rank, proportional;
 - weight_cap: null or a number in (0, 1];
 - signal_lag: integer at least 1;
-- cost_bps: positive one-way transaction cost in basis points.
 
 Use the frozen direction supplied for each factor.  Prefer complementary themes
 and explain any conditional factor.  Do not use future data, do not invent a
 factor, do not emit executable code, and do not optimize against a final holdout.
+Transaction costs are not proposal fields. The system always charges
+{BUY_COST_BPS:g} bps on buys and {SELL_COST_BPS:g} bps on sells; do not emit any
+cost or fee key.
 """.strip()
 
     def __call__(self, context: StrategyProposalContext) -> StrategyCandidate:
@@ -156,10 +156,6 @@ factor, do not emit executable code, and do not optimize against a final holdout
         top_n = int(payload.get("top_n", 0))
         if not self.min_top_n <= top_n <= self.max_top_n:
             raise ValueError(f"top_n must be in [{self.min_top_n}, {self.max_top_n}]")
-        cost_bps = float(payload.get("cost_bps", self.default_cost_bps))
-        if cost_bps <= 0:
-            raise ValueError("cost_bps must be positive")
-
         return StrategyCandidate(
             name=_safe_name(payload.get("name"), context),
             universe=self.universe,
@@ -171,7 +167,7 @@ factor, do not emit executable code, and do not optimize against a final holdout
             factor_names=factor_names,
             rule=str(payload.get("rule", "cross-sectional rank blend")).strip(),
             hypothesis=str(payload.get("hypothesis", "")).strip(),
-            backtest=BacktestSpec(signal_lag=int(payload.get("signal_lag", 1)), cost_bps=cost_bps),
+            backtest=BacktestSpec(signal_lag=int(payload.get("signal_lag", 1))),
             metadata={
                 "proposal_backend": "rdagent_llm",
                 "epoch_id": context.epoch_id,

@@ -66,26 +66,22 @@ class BacktestSpec:
     ``signal_lag`` is the number of trading days between a decision date and
     the first day the resulting weights can be traded.  ``1`` is the minimum on
     purpose: ``0`` would mean trading on a signal computed with the same day's
-    prices, i.e. look-ahead.  ``cost_bps`` is charged per unit of one-way
-    turnover (a round trip therefore costs twice as much).
+    prices, i.e. look-ahead. Transaction costs are deliberately absent: they
+    are an immutable system execution contract, not candidate state.
     """
 
     signal_lag: int = 1
-    cost_bps: float = 0.0
     trading_days_per_year: int = 252
 
     def __post_init__(self) -> None:
         if self.signal_lag < 1:
             raise ValueError("signal_lag must be at least 1; 0 would be look-ahead")
-        if self.cost_bps < 0:
-            raise ValueError("cost_bps must be non-negative")
         if self.trading_days_per_year <= 0:
             raise ValueError("trading_days_per_year must be positive")
 
     def as_payload(self) -> dict[str, Any]:
         return {
             "signal_lag": self.signal_lag,
-            "cost_bps": self.cost_bps,
             "trading_days_per_year": self.trading_days_per_year,
         }
 
@@ -93,7 +89,6 @@ class BacktestSpec:
     def from_payload(cls, payload: dict[str, Any]) -> "BacktestSpec":
         return cls(
             signal_lag=int(payload.get("signal_lag", 1)),
-            cost_bps=float(payload.get("cost_bps", 0.0)),
             trading_days_per_year=int(payload.get("trading_days_per_year", 252)),
         )
 

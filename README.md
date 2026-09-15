@@ -118,11 +118,13 @@ python -m scripts.register_gf_live_results `
 **组合构造与评价（纯本地、确定性）**
 
 - `candidate.py`：`StrategyCandidate` 规格——引用的因子或选样规则、Top-N、
-  加权方式、权重上限、信号滞后与成本假设；与 `FactorCandidate` 字段独立。
+  加权方式、权重上限与信号滞后；与 `FactorCandidate` 字段独立，且不含成本参数。
+- `costs.py`：交易成本是不可配置的系统事实——买入 10 bps、卖出 10 bps、
+  完整往返 20 bps。LLM、候选 JSON、CLI、环境变量和 settings 均不能覆盖。
 - `composition.py`：`build_target_weights` 由截面打分与可投资掩码生成目标
   权重（等权 / 名次 / 比例加权，含单票权重上限）。
-- `backtest.py`：`run_portfolio_backtest` 强制信号滞后、持仓漂移与单边换手
-  成本，输出总体与逐年组合指标及超额收益指标。
+- `backtest.py`：`run_portfolio_backtest` 强制信号滞后、持仓漂移，并按实际
+  买入额和卖出额分别扣费，输出总体与逐年组合指标及超额收益指标。
 - `registry.py` / `service.py`：独立的 SQLite 策略登记表、fail-closed 验收门，
   以及基于日度收益轨迹的策略去重（复用因子去重器）。
 
@@ -133,7 +135,8 @@ python -m scripts.register_gf_live_results `
 - `artifacts.py`：把工作集中被引用的因子表达式重新物化到独立的远端目录，
   生成带校验和的版本化清单，不触碰任何原始研究产物。
 - `remote.py` + `scripts/gf_quant_strategy_worker.py`：单文件远端组合 worker，
-  输出组合指标、逐年分解、因子贡献（消融）与紧凑收益轨迹。
+  请求在 candidate 之外注入固定成本契约，worker 严格核验 10/10 bps 后才执行，
+  并输出组合指标、逐年分解、因子贡献（消融）与紧凑收益轨迹。
 - `scripts/gf_quant_run_strategy_validation.py`：单独执行一个已物化的策略。
 
 **研究闭环（可运行入口）**
@@ -156,8 +159,8 @@ python -m rdagent.app.gf_rd_loop.strategy --epochs 2 --trials-per-epoch 5
 每个 epoch 在 `artifacts/live/strategy_epochs/` 下写入一份报告；某一轮失败
 会记录为 `status: "error"` 的报告而不是中断整个运行。
 
-架构评估（一体式端到端 / 分层模块化 / 折中）、与中证自由现金流指数编制规则
-的映射，以及批次计划见 `docs/gf_strategy_agent_design.md`。
+策略层如何与因子 registry 联动、双时间尺度 epoch 时序、远端回测审计产物，及与
+中证自由现金流指数编制规则的映射见 `docs/gf_strategy_agent_design.md`。
 
 运行核心测试：
 

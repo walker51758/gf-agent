@@ -16,6 +16,7 @@ from rdagent.scenarios.gf_quant.registry import FactorRecord, FactorRegistry
 from rdagent.scenarios.gf_quant.strategy.backtest import BacktestSpec, run_portfolio_backtest
 from rdagent.scenarios.gf_quant.strategy.candidate import CompositionSpec, StrategyCandidate
 from rdagent.scenarios.gf_quant.strategy.composition import build_target_weights
+from rdagent.scenarios.gf_quant.strategy.costs import execution_costs_metrics
 from rdagent.scenarios.gf_quant.strategy.registry import StrategyRecord, StrategyRegistry, strategy_id_for
 from rdagent.scenarios.gf_quant.strategy.service import (
     StrategyAcceptancePolicy,
@@ -140,11 +141,11 @@ def test_backtest_honours_signal_lag() -> None:
     # Day 0 cannot trade on itself; day 1 earns A's day-1 return, day 2 earns
     # B's day-2 return, day 3 is in cash.  A full switch counts as one-way
     # turnover of 1.0 under the half-L1 convention.
-    assert one_day.daily_returns.to_list() == pytest.approx([0.0, 0.20, 0.30, 0.0])
+    assert one_day.daily_returns.to_list() == pytest.approx([0.0, 0.199, 0.298, -0.001])
     assert one_day.turnover.to_list() == pytest.approx([0.0, 1.0, 1.0, 1.0])
 
     two_days = run_portfolio_backtest(targets, returns, spec=BacktestSpec(signal_lag=2))
-    assert two_days.daily_returns.to_list() == pytest.approx([0.0, 0.0, 0.02, 0.02])
+    assert two_days.daily_returns.to_list() == pytest.approx([0.0, 0.0, 0.019, 0.018])
 
 
 def test_backtest_drifts_holdings_between_rebalances() -> None:
@@ -162,16 +163,20 @@ def test_backtest_drifts_holdings_between_rebalances() -> None:
     assert result.turnover.loc[dates[2:]].abs().sum() == pytest.approx(0.0)
 
 
-def test_backtest_charges_cost_on_one_way_turnover() -> None:
+def test_backtest_charges_fixed_buy_sell_and_rotation_costs() -> None:
     dates = _returns().index
-    targets = pd.DataFrame(0.0, index=[dates[0]], columns=["A", "B"])
+    targets = pd.DataFrame(0.0, index=dates[:3], columns=["A", "B"])
     targets.loc[dates[0], "A"] = 1.0
+    targets.loc[dates[1], "B"] = 1.0
+    returns = pd.DataFrame(0.0, index=dates, columns=["A", "B"])
 
-    result = run_portfolio_backtest(targets, _returns(), spec=BacktestSpec(signal_lag=1, cost_bps=100))
-    assert result.metrics["cost_bps"] == 100.0
-    assert result.daily_returns.loc[dates[1]] == pytest.approx(0.20 - 1.0 * 0.01)
-    gross = run_portfolio_backtest(targets, _returns(), spec=BacktestSpec(signal_lag=1))
-    assert result.daily_gross_returns.loc[dates[1]] == pytest.approx(gross.daily_returns.loc[dates[1]])
+    result = run_portfolio_backtest(targets, returns, spec=BacktestSpec(signal_lag=1))
+
+    assert result.buy_turnover.to_list() == pytest.approx([0.0, 1.0, 1.0, 0.0])
+    assert result.sell_turnover.to_list() == pytest.approx([0.0, 0.0, 1.0, 1.0])
+    assert result.transaction_costs.to_list() == pytest.approx([0.0, 0.001, 0.002, 0.001])
+    assert result.daily_returns.to_list() == pytest.approx([0.0, -0.001, -0.002, -0.001])
+    assert {key: result.metrics[key] for key in execution_costs_metrics()} == execution_costs_metrics()
 
 
 def test_backtest_reports_yearly_and_benchmark_metrics() -> None:
@@ -187,12 +192,12 @@ def test_backtest_reports_yearly_and_benchmark_metrics() -> None:
     result = run_portfolio_backtest(
         weights,
         returns,
-        spec=BacktestSpec(signal_lag=1, cost_bps=5.0),
+        spec=BacktestSpec(signal_lag=1),
         benchmark_returns=pd.Series(0.0002, index=index),
     )
     assert set(result.metrics_by_year) == {"2022", "2023"}
     for year_metrics in result.metrics_by_year.values():
-        assert set(year_metrics) == set(result.metrics) - {"cost_bps", "signal_lag"}
+        assert set(year_metrics) == set(result.metrics) - {"signal_lag"}
     assert result.metrics["avg_holdings"] == pytest.approx(5.0, abs=0.1)
     assert result.metrics["excess_annualized_return"] > 0.0
     assert result.metrics["tracking_error"] > 0.0
@@ -214,7 +219,7 @@ def test_backtest_drawdown_includes_the_initial_nav() -> None:
 
     result = run_portfolio_backtest(targets, returns, spec=BacktestSpec(signal_lag=1))
 
-    assert result.metrics["max_drawdown"] == pytest.approx(-0.20)
+    assert result.metrics["max_drawdown"] == pytest.approx(-0.201)
 
 
 def test_backtest_validates_inputs_instead_of_dropping_them() -> None:
@@ -250,8 +255,6 @@ def test_backtest_validates_inputs_instead_of_dropping_them() -> None:
 def test_backtest_spec_rejects_look_ahead_execution() -> None:
     with pytest.raises(ValueError, match="look-ahead"):
         BacktestSpec(signal_lag=0)
-    with pytest.raises(ValueError, match="cost_bps"):
-        BacktestSpec(cost_bps=-1.0)
 
 
 # ---- registry --------------------------------------------------------------
@@ -263,7 +266,7 @@ def test_strategy_identity_covers_the_whole_spec() -> None:
         universe="csi_all",
         composition=CompositionSpec(top_n=50, weighting="proportional", weight_cap=0.1),
         rule="free cash flow rate ranking",
-        backtest=BacktestSpec(signal_lag=1, cost_bps=15.0),
+        backtest=BacktestSpec(signal_lag=1),
     )
     other = StrategyCandidate(
         name="fcf_top50",
@@ -299,7 +302,7 @@ def test_strategy_candidate_payload_round_trip() -> None:
         factor_names=("value", "quality"),
         rule="rank blend",
         hypothesis="complementary factors",
-        backtest=BacktestSpec(signal_lag=2, cost_bps=8.0),
+        backtest=BacktestSpec(signal_lag=2),
         metadata={"epoch_id": "e1"},
     )
     payload = {**candidate.as_payload(), "hypothesis": candidate.hypothesis, "metadata": candidate.metadata}
@@ -307,6 +310,11 @@ def test_strategy_candidate_payload_round_trip() -> None:
     restored = StrategyCandidate.from_payload(payload)
 
     assert restored == candidate
+    legacy = StrategyCandidate.from_payload(
+        {**payload, "backtest": {**payload["backtest"], "cost_bps": 0.0}}
+    )
+    assert legacy == candidate
+    assert "cost_bps" not in legacy.as_payload()["backtest"]
 
 
 def test_strategy_registry_upsert_and_query(tmp_path) -> None:
@@ -378,7 +386,7 @@ def _skilled_backtest() -> StrategyEvaluation:
     returns = pd.DataFrame(rng.normal(0.0, 0.001, size=(len(index), 10)) + drift, index=index, columns=symbols)
     score = pd.DataFrame({symbol: float(position) for position, symbol in enumerate(symbols)}, index=index[::21])
     weights = build_target_weights(CompositionSpec(top_n=5), score)
-    result = run_portfolio_backtest(weights, returns, spec=BacktestSpec(signal_lag=1, cost_bps=10.0))
+    result = run_portfolio_backtest(weights, returns, spec=BacktestSpec(signal_lag=1))
     return StrategyEvaluation.from_result(result)
 
 
@@ -388,7 +396,7 @@ def _candidate(name: str = "fcf_top5", **overrides) -> StrategyCandidate:
         "universe": "csi_all",
         "composition": CompositionSpec(top_n=5),
         "rule": "free cash flow rate ranking",
-        "backtest": BacktestSpec(signal_lag=1, cost_bps=10.0),
+        "backtest": BacktestSpec(signal_lag=1),
     }
     fields.update(overrides)
     return StrategyCandidate(**fields)
@@ -418,11 +426,12 @@ def test_strategy_service_accepts_a_valid_candidate(tmp_path) -> None:
 
 def test_strategy_service_rejects_gate_failures_fail_closed(tmp_path) -> None:
     evaluation = _skilled_backtest()
-    result = _service(tmp_path, evaluation).process(
-        _candidate(name="no_cost", backtest=BacktestSpec(signal_lag=1, cost_bps=0.0))
-    )
+    metrics = dict(evaluation.metrics)
+    metrics.pop("buy_cost_bps")
+    bad_cost = StrategyEvaluation(**{**evaluation.__dict__, "metrics": metrics})
+    result = _service(tmp_path, bad_cost).process(_candidate(name="bad_cost_audit"))
     assert result.record.status == "rejected"
-    assert "strategy_cost_missing" in result.gate_failures
+    assert "strategy_buy_cost_not_fixed" in result.gate_failures
 
     # A policy can raise the execution lag; a lag-1 candidate then fails too.
     strict = StrategyAcceptanceService(
@@ -454,6 +463,7 @@ def test_strategy_policy_can_enforce_validation_target_and_yearly_stability() ->
     )
     candidate = _candidate(name="strict_target")
     metrics = {
+        **execution_costs_metrics(),
         "observations": 250,
         "avg_holdings": 20,
         "annualized_return": 0.07,
@@ -486,6 +496,7 @@ def test_strategy_policy_caps_stability_gate_to_bound_single_year_window() -> No
     )
     candidate = _candidate(name="single_year_validation")
     metrics = {
+        **execution_costs_metrics(),
         "observations": 242,
         "avg_holdings": 50,
         "annualized_return": 0.20,
@@ -505,6 +516,45 @@ def test_strategy_policy_caps_stability_gate_to_bound_single_year_window() -> No
     assert failures_single == []
     assert passed_multi is False
     assert "strategy_valid_years" in failures_multi
+
+
+def test_strategy_policy_requires_the_system_execution_cost_facts() -> None:
+    pinned = StrategyAcceptancePolicy(min_observations=100, min_avg_holdings=4.0, min_sharpe=0.3)
+    assert pinned.execution_costs() == execution_costs_metrics()
+    assert pinned.check(_skilled_backtest().metrics, _candidate()) == (True, [])
+
+    metrics = dict(_skilled_backtest().metrics)
+    metrics["sell_cost_bps"] = 3.0
+    passed, failures = pinned.check(metrics, _candidate(name="tampered_cost"))
+    assert passed is False
+    assert failures == ["strategy_sell_cost_not_fixed"]
+
+
+def test_strategy_service_records_the_fixed_execution_costs(tmp_path) -> None:
+    evaluation = _skilled_backtest()
+    service = StrategyAcceptanceService(
+        StrategyRegistry(tmp_path / "strategy_registry.sqlite"),
+        lambda candidate: evaluation,
+        policy=StrategyAcceptancePolicy(min_observations=100, min_avg_holdings=4.0, min_sharpe=0.3),
+    )
+
+    accepted = service.process(_candidate())
+
+    assert accepted.record.status == "accepted"
+    assert accepted.record.metadata["execution_costs"] == execution_costs_metrics()
+    assert {key: accepted.record.metrics[key] for key in execution_costs_metrics()} == execution_costs_metrics()
+
+    bad_metrics = dict(evaluation.metrics)
+    bad_metrics["round_trip_cost_bps"] = 2.0
+    rejected_service = StrategyAcceptanceService(
+        StrategyRegistry(tmp_path / "rejected_strategy_registry.sqlite"),
+        lambda candidate: StrategyEvaluation(**{**evaluation.__dict__, "metrics": bad_metrics}),
+        policy=StrategyAcceptancePolicy(min_observations=100, min_avg_holdings=4.0, min_sharpe=0.3),
+    )
+    rejected = rejected_service.process(_candidate(name="off_caliber"))
+    assert rejected.record.status == "rejected"
+    assert "strategy_round_trip_cost_not_fixed" in rejected.gate_failures
+    assert rejected.record.metadata["execution_costs"] == execution_costs_metrics()
 
 
 def test_strategy_service_marks_overlapping_strategies_as_duplicates(tmp_path) -> None:

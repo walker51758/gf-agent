@@ -9,8 +9,8 @@ assumptions are enforced here rather than trusted to the caller:
   later, so a same-day signal can never earn its own day's return;
 * holdings drift with realised returns between rebalances, which is what makes
   reported turnover comparable to a real rebalance schedule;
-* costs are charged on one-way turnover, and "no cost" is an explicit
-  ``cost_bps=0`` that the acceptance gate can refuse.
+* costs are charged separately on actual asset buys and sells at the immutable
+  system rates; candidates and callers cannot select a cheaper assumption.
 """
 
 from __future__ import annotations
@@ -22,6 +22,11 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from rdagent.scenarios.gf_quant.strategy.candidate import BacktestSpec
+from rdagent.scenarios.gf_quant.strategy.costs import (
+    BUY_COST_RATE,
+    SELL_COST_RATE,
+    execution_costs_metrics,
+)
 
 
 @dataclass(frozen=True)
@@ -34,6 +39,9 @@ class PortfolioResult:
     daily_gross_returns: pd.Series
     weights: pd.DataFrame
     turnover: pd.Series
+    buy_turnover: pd.Series
+    sell_turnover: pd.Series
+    transaction_costs: pd.Series
 
 
 def _max_drawdown(returns: pd.Series) -> float:
@@ -95,6 +103,29 @@ def _relative_performance(daily: pd.Series, benchmark: pd.Series, spec: Backtest
     }
 
 
+def _cost_metrics(
+    buy_turnover: pd.Series,
+    sell_turnover: pd.Series,
+    transaction_costs: pd.Series,
+    spec: BacktestSpec,
+) -> dict[str, Any]:
+    """Project immutable rates plus realised side-specific trading activity."""
+
+    per_year = spec.trading_days_per_year
+    mean_buy = float(buy_turnover.mean()) if len(buy_turnover) else 0.0
+    mean_sell = float(sell_turnover.mean()) if len(sell_turnover) else 0.0
+    mean_cost = float(transaction_costs.mean()) if len(transaction_costs) else 0.0
+    return {
+        **execution_costs_metrics(),
+        "buy_turnover": mean_buy,
+        "sell_turnover": mean_sell,
+        "annual_buy_turnover": mean_buy * per_year,
+        "annual_sell_turnover": mean_sell * per_year,
+        "average_transaction_cost": mean_cost,
+        "total_transaction_cost": float(transaction_costs.sum()),
+    }
+
+
 def run_portfolio_backtest(
     target_weights: pd.DataFrame,
     returns: pd.DataFrame,
@@ -102,7 +133,7 @@ def run_portfolio_backtest(
     spec: BacktestSpec,
     benchmark_returns: pd.Series | None = None,
 ) -> PortfolioResult:
-    """Simulate a rebalanced portfolio with lag, drift and one-way costs.
+    """Simulate a rebalanced portfolio with lag, drift and fixed side costs.
 
     Parameters
     ----------
@@ -114,7 +145,7 @@ def run_portfolio_backtest(
         Daily simple returns per symbol, ``index=dt`` / ``columns=symbol``.
         A missing return is treated as a flat day for that holding.
     spec:
-        Execution assumptions (lag, cost, annualisation).
+        Candidate-independent execution assumptions (lag and annualisation).
     benchmark_returns:
         Optional daily benchmark returns used for excess-return metrics.
     """
@@ -165,6 +196,8 @@ def run_portfolio_backtest(
     start_weights = pd.DataFrame(0.0, index=dates, columns=symbols)
     gross = pd.Series(0.0, index=dates, dtype=float)
     turnover = pd.Series(0.0, index=dates, dtype=float)
+    buy_turnover = pd.Series(0.0, index=dates, dtype=float)
+    sell_turnover = pd.Series(0.0, index=dates, dtype=float)
 
     carried = pd.Series(0.0, index=symbols, dtype=float)
     for position, date in enumerate(dates):
@@ -178,6 +211,9 @@ def run_portfolio_backtest(
         day_return = returns.loc[date]
         day_return = day_return.fillna(0.0)
         portfolio_return = float((weights * day_return).sum())
+        delta = weights - carried
+        buy_turnover.loc[date] = float(delta.clip(lower=0.0).sum())
+        sell_turnover.loc[date] = float((-delta).clip(lower=0.0).sum())
         # Half-L1 turnover must include the implicit cash asset.  Omitting cash
         # would count a full initial investment (or liquidation) as only 0.5
         # and undercharge costs whenever the book is not fully invested.
@@ -193,11 +229,11 @@ def run_portfolio_backtest(
         # weights are kept so the remaining days report zero activity instead
         # of inventing a recovery.
 
-    cost_rate = spec.cost_bps * 1e-4
-    net = gross - turnover * cost_rate
+    transaction_costs = buy_turnover * BUY_COST_RATE + sell_turnover * SELL_COST_RATE
+    net = gross - transaction_costs
 
     metrics = _performance(net, turnover, start_weights, spec)
-    metrics["cost_bps"] = spec.cost_bps
+    metrics.update(_cost_metrics(buy_turnover, sell_turnover, transaction_costs, spec))
     metrics["signal_lag"] = spec.signal_lag
     benchmark_aligned: pd.Series | None = None
     if benchmark_returns is not None:
@@ -212,6 +248,9 @@ def run_portfolio_backtest(
         if year_net.empty:
             continue
         year_metrics = _performance(year_net, turnover[mask], start_weights[mask], spec)
+        year_metrics.update(
+            _cost_metrics(buy_turnover[mask], sell_turnover[mask], transaction_costs[mask], spec)
+        )
         if benchmark_aligned is not None:
             year_metrics.update(_relative_performance(year_net, benchmark_aligned[mask], spec))
         by_year[year] = year_metrics
@@ -223,4 +262,7 @@ def run_portfolio_backtest(
         daily_gross_returns=gross,
         weights=start_weights,
         turnover=turnover,
+        buy_turnover=buy_turnover,
+        sell_turnover=sell_turnover,
+        transaction_costs=transaction_costs,
     )

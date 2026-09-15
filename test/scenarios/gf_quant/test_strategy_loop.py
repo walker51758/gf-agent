@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import inspect
 
 import pandas as pd
 import pytest
@@ -13,8 +14,10 @@ from rdagent.app.gf_rd_loop.strategy import (
     load_epoch_windows,
     run_strategy_epochs,
 )
+from rdagent.scenarios.gf_quant.conf import GF_SCENARIO_SETTINGS
 from rdagent.scenarios.gf_quant.registry import FactorRecord, FactorRegistry
 from rdagent.scenarios.gf_quant.strategy.candidate import BacktestSpec, CompositionSpec, StrategyCandidate
+from rdagent.scenarios.gf_quant.strategy.costs import execution_costs_metrics
 from rdagent.scenarios.gf_quant.strategy.orchestrator import OuterEpochConfig
 from rdagent.scenarios.gf_quant.strategy.registry import StrategyRegistry
 from rdagent.scenarios.gf_quant.strategy.service import StrategyAcceptanceService, StrategyEvaluation
@@ -38,6 +41,7 @@ def _strategy_evaluation(candidate: StrategyCandidate) -> StrategyEvaluation:
     dates = pd.bdate_range("2022-01-03", periods=120)
     return StrategyEvaluation(
         metrics={
+            **execution_costs_metrics(),
             "observations": 120,
             "avg_holdings": 20,
             "annualized_return": 0.02,
@@ -67,7 +71,7 @@ class _ScriptedProposer:
             universe="csi_all",
             composition=CompositionSpec(top_n=20),
             factor_names=self.factor_names,
-            backtest=BacktestSpec(signal_lag=1, cost_bps=10),
+            backtest=BacktestSpec(signal_lag=1),
             metadata={"epoch_id": context.epoch_id, "trial_index": context.trial_index},
         )
         self.proposed.append(candidate)
@@ -151,6 +155,79 @@ def test_epoch_binding_gives_the_service_the_frozen_snapshot(tmp_path) -> None:
     assert epoch.snapshot.snapshot_id
 
 
+def test_builder_uses_the_unconfigurable_system_execution_costs(tmp_path) -> None:
+    factor_registry = FactorRegistry(tmp_path / "factors.sqlite")
+    factor_registry.upsert(_factor("f1", "value"))
+    factor_registry.upsert(_factor("f2", "quality"))
+    registry = StrategyRegistry(tmp_path / "strategies.sqlite")
+    config = OuterEpochConfig(
+        strategy_trials_per_epoch=1,
+        working_set_core=2,
+        working_set_conditional=0,
+        min_factors_per_strategy=2,
+        targeted_factor_rounds_max=0,
+        exploratory_factor_rounds=0,
+    )
+
+    orchestrator = build_strategy_orchestrator(
+        data_cutoff="2023-12-31",
+        evaluation_start="2020-01-01",
+        evaluation_end="2023-12-31",
+        config=config,
+        factor_registry=factor_registry,
+        strategy_registry=registry,
+        proposal_engine=_ScriptedProposer(("value", "quality")),
+    )
+
+    assert orchestrator.strategy_service.policy.execution_costs() == execution_costs_metrics()
+    assert "fixed_cost_bps" not in inspect.signature(build_strategy_orchestrator).parameters
+    assert "strategy_fixed_cost_bps" not in GF_SCENARIO_SETTINGS.__class__.model_fields
+    assert not hasattr(config, "fixed_cost_bps")
+
+
+def _loop_kwargs(factor_registry: FactorRegistry, strategy_registry_path, **overrides) -> dict:
+    kwargs = {
+        "data_cutoff": "2023-12-31",
+        "evaluation_start": "2020-01-01",
+        "evaluation_end": "2023-12-31",
+        "config": OuterEpochConfig(
+            strategy_trials_per_epoch=1,
+            working_set_core=2,
+            working_set_conditional=0,
+            min_factors_per_strategy=2,
+            targeted_factor_rounds_max=0,
+            exploratory_factor_rounds=0,
+        ),
+        "factor_registry": factor_registry,
+        "strategy_registry": StrategyRegistry(strategy_registry_path),
+        "proposal_engine": _ScriptedProposer(("value", "quality")),
+    }
+    kwargs.update(overrides)
+    return kwargs
+
+
+def test_builder_rejects_the_obsolete_cost_override_keyword(tmp_path) -> None:
+    factor_registry = FactorRegistry(tmp_path / "factors.sqlite")
+    factor_registry.upsert(_factor("f1", "value"))
+    factor_registry.upsert(_factor("f2", "quality"))
+
+    with pytest.raises(TypeError, match="fixed_cost_bps"):
+        build_strategy_orchestrator(
+            **_loop_kwargs(factor_registry, tmp_path / "strategies.sqlite"),
+            fixed_cost_bps=1.0,
+        )
+
+
+def test_builder_needs_no_cost_configuration(tmp_path) -> None:
+    factor_registry = FactorRegistry(tmp_path / "factors.sqlite")
+    factor_registry.upsert(_factor("f1", "value"))
+    factor_registry.upsert(_factor("f2", "quality"))
+    orchestrator = build_strategy_orchestrator(
+        **_loop_kwargs(factor_registry, tmp_path / "strategies.sqlite")
+    )
+    assert orchestrator.strategy_service.policy.execution_costs() == execution_costs_metrics()
+
+
 def test_epoch_binding_adapts_annual_gate_to_single_year_window(tmp_path) -> None:
     orchestrator, _factors, _registry, service, _researcher = _build(tmp_path)
 
@@ -173,7 +250,7 @@ def test_service_refuses_to_process_before_an_epoch_is_bound(tmp_path) -> None:
         universe="csi_all",
         composition=CompositionSpec(top_n=20),
         factor_names=("value", "quality"),
-        backtest=BacktestSpec(signal_lag=1, cost_bps=10),
+        backtest=BacktestSpec(signal_lag=1),
     )
 
     with pytest.raises(RuntimeError, match="no epoch is bound"):

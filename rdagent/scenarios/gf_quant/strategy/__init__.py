@@ -11,6 +11,12 @@ from rdagent.scenarios.gf_quant.strategy.backtest import PortfolioResult, run_po
 from rdagent.scenarios.gf_quant.strategy.artifacts import FactorArtifactCache
 from rdagent.scenarios.gf_quant.strategy.candidate import BacktestSpec, CompositionSpec, StrategyCandidate
 from rdagent.scenarios.gf_quant.strategy.composition import build_target_weights
+from rdagent.scenarios.gf_quant.strategy.costs import (
+    BUY_COST_BPS,
+    ROUND_TRIP_COST_BPS,
+    SELL_COST_BPS,
+    execution_costs_metrics,
+)
 from rdagent.scenarios.gf_quant.strategy.registry import StrategyRecord, StrategyRegistry, strategy_id_for
 from rdagent.scenarios.gf_quant.strategy.proposal import LLMStrategyProposalEngine
 from rdagent.scenarios.gf_quant.strategy.factor_research import (
@@ -48,6 +54,7 @@ from rdagent.scenarios.gf_quant.strategy.snapshot import (
 
 __all__ = [
     "BacktestSpec",
+    "BUY_COST_BPS",
     "CompositionSpec",
     "FactorSnapshotItem",
     "FactorAttemptSummary",
@@ -64,6 +71,8 @@ __all__ = [
     "OuterEpochConfig",
     "OuterEpochResult",
     "PortfolioResult",
+    "ROUND_TRIP_COST_BPS",
+    "SELL_COST_BPS",
     "StrategyAcceptancePolicy",
     "StrategyAcceptanceService",
     "StrategyCandidate",
@@ -77,6 +86,7 @@ __all__ = [
     "build_factor_universe_snapshot",
     "build_factor_working_set",
     "epoch_report",
+    "execution_costs_metrics",
     "factor_eligibility",
     "derive_factor_demands",
     "render_demand_feedback",

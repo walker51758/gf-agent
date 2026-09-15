@@ -60,7 +60,6 @@ def _valid_payload():
         "weighting": "equal",
         "weight_cap": 0.05,
         "signal_lag": 1,
-        "cost_bps": 10,
     }
 
 
@@ -72,7 +71,7 @@ def test_llm_strategy_proposal_uses_strict_frozen_contract(tmp_path) -> None:
 
     assert candidate.factor_names == ("value", "quality")
     assert candidate.composition.top_n == 50
-    assert candidate.backtest.cost_bps == 10
+    assert "cost_bps" not in candidate.backtest.as_payload()
     assert candidate.name.endswith("_epoch001_t02")
     assert candidate.metadata["snapshot_id"] == context.snapshot_id
     assert backend.calls[0]["json_mode"] is True
@@ -86,7 +85,6 @@ def test_llm_strategy_proposal_uses_strict_frozen_contract(tmp_path) -> None:
         ({"factor_names": ["value", "invented"]}, "invented"),
         ({"factor_names": ["value", "value"]}, "duplicate"),
         ({"top_n": 500}, "top_n"),
-        ({"cost_bps": 0}, "cost_bps"),
         ({"signal_lag": 0}, "look-ahead"),
     ],
 )
@@ -95,3 +93,18 @@ def test_llm_strategy_proposal_fails_closed(tmp_path, update, message) -> None:
     payload.update(update)
     with pytest.raises(ValueError, match=message):
         LLMStrategyProposalEngine(FakeBackend(payload))(_context(tmp_path))
+
+
+def test_model_cost_quote_is_ignored_and_not_part_of_the_prompt_contract(tmp_path) -> None:
+    backend = FakeBackend({**_valid_payload(), "cost_bps": 3})
+    context = _context(tmp_path)
+
+    candidate = LLMStrategyProposalEngine(backend)(context)
+
+    assert "cost_bps" not in candidate.as_payload()["backtest"]
+    prompt = backend.calls[0]["user_prompt"]
+    assert "10 bps on buys and 10 bps on sells" in prompt
+    assert "cost_bps:" not in prompt
+
+    free = LLMStrategyProposalEngine(FakeBackend({**_valid_payload(), "cost_bps": 0}))(context)
+    assert free == candidate

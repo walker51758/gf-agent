@@ -17,6 +17,10 @@ from rdagent.scenarios.gf_quant.conf import GF_SCENARIO_SETTINGS
 from rdagent.scenarios.gf_quant.remote import RemoteSettings, _connect, _safe_remote
 from rdagent.scenarios.gf_quant.strategy.artifacts import FactorArtifactSet
 from rdagent.scenarios.gf_quant.strategy.candidate import StrategyCandidate
+from rdagent.scenarios.gf_quant.strategy.costs import (
+    execution_costs_request,
+    has_fixed_execution_costs,
+)
 from rdagent.scenarios.gf_quant.strategy.service import StrategyEvaluation
 from rdagent.scenarios.gf_quant.strategy.snapshot import FactorUniverseSnapshot, FactorWorkingSet
 
@@ -121,6 +125,7 @@ class RemoteStrategyEvaluator:
             "artifact_set": self.artifact_set.as_payload(),
             "factor_directions": {name: factor_by_name[name].direction for name in candidate.factor_names},
             "candidate": candidate.as_payload(),
+            "execution_costs": execution_costs_request(),
             "evaluation": {
                 "start": self.evaluation_start,
                 "end": self.evaluation_end,
@@ -162,6 +167,11 @@ class RemoteStrategyEvaluator:
         contributions = payload.get("factor_contributions")
         if not isinstance(metrics, Mapping) or not isinstance(by_year, Mapping):
             raise RuntimeError("strategy result metrics are malformed")
+        if not has_fixed_execution_costs(metrics):
+            raise RuntimeError("strategy result does not prove the fixed execution costs")
+        audit = payload.get("audit")
+        if not isinstance(audit, Mapping) or audit.get("execution_costs") != request.get("execution_costs"):
+            raise RuntimeError("strategy result execution-cost audit does not match request")
         if not isinstance(profile, Mapping) or not isinstance(contributions, Mapping):
             raise RuntimeError("strategy result return profile or contributions are malformed")
         dates, values = profile.get("dates"), profile.get("returns")

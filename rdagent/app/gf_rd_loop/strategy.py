@@ -359,6 +359,9 @@ def build_strategy_orchestrator(
     ``proposal_engine``, ``factor_proposer`` and ``factor_acceptance_service``
     default to their RD-Agent implementations; passing substitutes is how tests
     and experiments replace a single collaborator without stubbing the rest.
+
+    Transaction costs are owned by the strategy execution layer and cannot be
+    changed by this builder, settings, environment variables or the CLI.
     """
 
     from rdagent.scenarios.gf_quant.mining import RDAGentDSLProposer
@@ -371,6 +374,8 @@ def build_strategy_orchestrator(
     strategy_registry = strategy_registry or StrategyRegistry(settings.strategy_registry_path)
     default_evaluation_start = evaluation_start
     default_evaluation_end = evaluation_end
+
+    config = config or OuterEpochConfig()
 
     def make_remote_evaluator(
         *,

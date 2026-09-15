@@ -18,6 +18,12 @@ import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
 
+BUY_COST_BPS = 10.0
+SELL_COST_BPS = 10.0
+ROUND_TRIP_COST_BPS = BUY_COST_BPS + SELL_COST_BPS
+BUY_COST_RATE = BUY_COST_BPS * 1e-4
+SELL_COST_RATE = SELL_COST_BPS * 1e-4
+
 
 def _canonical_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
@@ -90,8 +96,18 @@ def _validate_request(request: Mapping[str, Any]) -> None:
         raise ValueError("weight_cap must be in (0, 1]")
     if int(backtest.get("signal_lag", 0)) < 1:
         raise ValueError("signal_lag must be at least 1")
-    if float(backtest.get("cost_bps", 0.0)) <= 0:
-        raise ValueError("positive transaction cost is required")
+    if any(key in backtest for key in ("cost_bps", "buy_cost_bps", "sell_cost_bps", "round_trip_cost_bps")):
+        raise ValueError("candidate backtest must not contain transaction-cost fields")
+    execution_costs = request.get("execution_costs")
+    if not isinstance(execution_costs, Mapping) or set(execution_costs) != {"buy_bps", "sell_bps"}:
+        raise ValueError("execution_costs must contain exactly buy_bps and sell_bps")
+    try:
+        buy_bps = float(execution_costs["buy_bps"])
+        sell_bps = float(execution_costs["sell_bps"])
+    except (TypeError, ValueError) as exc:
+        raise ValueError("execution_costs must be numeric") from exc
+    if buy_bps != BUY_COST_BPS or sell_bps != SELL_COST_BPS:
+        raise ValueError("execution_costs must match the fixed 10/10 bps system contract")
 
     artifact_set = request.get("artifact_set")
     if not isinstance(artifact_set, Mapping):
@@ -223,12 +239,23 @@ def _max_drawdown(returns: pd.Series) -> float:
     return float((wealth / wealth.cummax() - 1.0).min())
 
 
-def _metrics(daily: pd.Series, turnover: pd.Series, weights: pd.DataFrame, per_year: int = 252) -> dict[str, Any]:
+def _metrics(
+    daily: pd.Series,
+    turnover: pd.Series,
+    buy_turnover: pd.Series,
+    sell_turnover: pd.Series,
+    transaction_costs: pd.Series,
+    weights: pd.DataFrame,
+    per_year: int = 252,
+) -> dict[str, Any]:
     mean = float(daily.mean()) if len(daily) else 0.0
     std = float(daily.std()) if len(daily) > 1 else 0.0
     total = float((1.0 + daily).prod() - 1.0) if len(daily) else 0.0
     terminal = 1.0 + total
     cagr = float(terminal ** (per_year / len(daily)) - 1.0) if len(daily) and terminal > 0 else -1.0
+    mean_buy = float(buy_turnover.mean()) if len(buy_turnover) else 0.0
+    mean_sell = float(sell_turnover.mean()) if len(sell_turnover) else 0.0
+    mean_cost = float(transaction_costs.mean()) if len(transaction_costs) else 0.0
     return {
         "observations": int(len(daily)),
         "total_return": total,
@@ -239,6 +266,15 @@ def _metrics(daily: pd.Series, turnover: pd.Series, weights: pd.DataFrame, per_y
         "max_drawdown": _max_drawdown(daily) if len(daily) else 0.0,
         "turnover": float(turnover.mean()) if len(turnover) else 0.0,
         "annual_turnover": float(turnover.mean()) * per_year if len(turnover) else 0.0,
+        "buy_turnover": mean_buy,
+        "sell_turnover": mean_sell,
+        "annual_buy_turnover": mean_buy * per_year,
+        "annual_sell_turnover": mean_sell * per_year,
+        "average_transaction_cost": mean_cost,
+        "total_transaction_cost": float(transaction_costs.sum()),
+        "buy_cost_bps": BUY_COST_BPS,
+        "sell_cost_bps": SELL_COST_BPS,
+        "round_trip_cost_bps": ROUND_TRIP_COST_BPS,
         "avg_holdings": float((weights != 0).sum(axis=1).mean()) if len(weights) else 0.0,
         "win_rate": float((daily > 0).mean()) if len(daily) else 0.0,
     }
@@ -246,7 +282,6 @@ def _metrics(daily: pd.Series, turnover: pd.Series, weights: pd.DataFrame, per_y
 
 def _backtest(targets: pd.DataFrame, returns: pd.DataFrame, backtest: Mapping[str, Any], benchmark: pd.Series):
     lag = int(backtest["signal_lag"])
-    cost_rate = float(backtest["cost_bps"]) * 1e-4
     aligned = targets.reindex(columns=returns.columns).fillna(0.0)
     target_by_date = {date: row.to_numpy(float) for date, row in aligned.iterrows()}
     symbols = list(returns.columns)
@@ -254,11 +289,16 @@ def _backtest(targets: pd.DataFrame, returns: pd.DataFrame, backtest: Mapping[st
     start_weights = pd.DataFrame(0.0, index=returns.index, columns=symbols)
     gross = pd.Series(0.0, index=returns.index)
     turnover = pd.Series(0.0, index=returns.index)
+    buy_turnover = pd.Series(0.0, index=returns.index)
+    sell_turnover = pd.Series(0.0, index=returns.index)
     for position, date in enumerate(returns.index):
         source = position - lag
         weights = pd.Series(target_by_date[returns.index[source]], index=symbols) if source >= 0 and returns.index[source] in target_by_date else carried
         day = returns.loc[date].fillna(0.0)
         portfolio_return = float((weights * day).sum())
+        delta = weights - carried
+        buy_turnover.loc[date] = float(delta.clip(lower=0.0).sum())
+        sell_turnover.loc[date] = float((-delta).clip(lower=0.0).sum())
         cash_before, cash_after = 1.0 - float(carried.sum()), 1.0 - float(weights.sum())
         turnover.loc[date] = 0.5 * (float((weights - carried).abs().sum()) + abs(cash_after - cash_before))
         gross.loc[date] = portfolio_return
@@ -266,13 +306,13 @@ def _backtest(targets: pd.DataFrame, returns: pd.DataFrame, backtest: Mapping[st
         denominator = 1.0 + portfolio_return
         if denominator > 0:
             carried = weights * (1.0 + day) / denominator
-    net = gross - turnover * cost_rate
-    metrics = _metrics(net, turnover, start_weights)
+    transaction_costs = buy_turnover * BUY_COST_RATE + sell_turnover * SELL_COST_RATE
+    net = gross - transaction_costs
+    metrics = _metrics(net, turnover, buy_turnover, sell_turnover, transaction_costs, start_weights)
     excess = net - benchmark
     excess_std = float(excess.std())
     metrics.update(
         {
-            "cost_bps": float(backtest["cost_bps"]),
             "signal_lag": lag,
             "excess_annualized_return": float(excess.mean()) * 252,
             "tracking_error": excess_std * 252**0.5,
@@ -282,7 +322,14 @@ def _backtest(targets: pd.DataFrame, returns: pd.DataFrame, backtest: Mapping[st
     by_year = {}
     for year in sorted(set(net.index.year)):
         mask = net.index.year == year
-        yearly = _metrics(net.loc[mask], turnover.loc[mask], start_weights.loc[mask])
+        yearly = _metrics(
+            net.loc[mask],
+            turnover.loc[mask],
+            buy_turnover.loc[mask],
+            sell_turnover.loc[mask],
+            transaction_costs.loc[mask],
+            start_weights.loc[mask],
+        )
         year_excess = net.loc[mask] - benchmark.loc[mask]
         year_std = float(year_excess.std())
         yearly.update(
@@ -385,6 +432,7 @@ def run_request(request_path: Path, result_path: Path) -> dict[str, Any]:
             "artifact_checksum": artifact_checksum,
             "audit": {
                 "evaluation": dict(evaluation),
+                "execution_costs": dict(request["execution_costs"]),
                 "score_combination": "equal_weight_cross_sectional_percentile_rank",
                 "factor_score_weights_supported": False,
                 "benchmark": "daily_equal_weight_investable_universe",

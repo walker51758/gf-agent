@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
+from rdagent.scenarios.gf_quant.strategy.costs import execution_costs_metrics
 from rdagent.scenarios.gf_quant.strategy.orchestrator import OuterEpochResult, StrategyTrial
 
 SCHEMA_VERSION = 1
@@ -36,7 +37,12 @@ _HEADLINE_METRICS = (
     "avg_holdings",
     "observations",
     "signal_lag",
-    "cost_bps",
+    "buy_cost_bps",
+    "sell_cost_bps",
+    "round_trip_cost_bps",
+    "buy_turnover",
+    "sell_turnover",
+    "total_transaction_cost",
 )
 
 
@@ -71,7 +77,7 @@ def _trial_payload(trial: StrategyTrial) -> dict[str, Any]:
         "universe": trial.candidate.universe if trial.candidate is not None else None,
         "rule": trial.candidate.rule if trial.candidate is not None else None,
         "signal_lag": trial.candidate.backtest.signal_lag if trial.candidate is not None else None,
-        "cost_bps": trial.candidate.backtest.cost_bps if trial.candidate is not None else None,
+        "execution_costs": execution_costs_metrics(),
         "status": result.record.status if result is not None else "error",
         "gate_failures": list(result.gate_failures) if result is not None else [],
         "dedup_of": result.record.dedup_of if result is not None else None,
@@ -97,6 +103,9 @@ def _trial_payload(trial: StrategyTrial) -> dict[str, Any]:
         requirements = result.record.metadata.get("annual_gate_requirements", {})
         if isinstance(requirements, Mapping):
             payload["annual_gate_requirements"] = _json_safe(requirements)
+        recorded_costs = result.record.metadata.get("execution_costs", {})
+        if isinstance(recorded_costs, Mapping):
+            payload["execution_costs"] = _json_safe(recorded_costs)
     return payload
 
 
@@ -139,6 +148,7 @@ def epoch_report(result: OuterEpochResult) -> dict[str, Any]:
         "epoch_id": result.epoch_id,
         "created_at": result.created_at,
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "execution_costs": execution_costs_metrics(),
         "evaluation": {
             "start": result.evaluation_start,
             "end": result.evaluation_end,

@@ -36,3 +36,16 @@ Thumbs.db
 
 # Documentation
 广发因子智能体-产品视角业务说明.html
+
+# Local / dev artifacts — not for upstream
+temp/
+outputs/
+.harness/
+*.pdf
+tmp_glm_err.txt
+tmp_glm_out.txt
+tmp_model_call.py
+tmp_prompt.txt
+
+# LICENSE — removed from upstream repo
+LICENSE
