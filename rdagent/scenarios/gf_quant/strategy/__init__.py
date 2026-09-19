@@ -9,8 +9,22 @@ batch plan.
 
 from rdagent.scenarios.gf_quant.strategy.backtest import PortfolioResult, run_portfolio_backtest
 from rdagent.scenarios.gf_quant.strategy.artifacts import FactorArtifactCache
-from rdagent.scenarios.gf_quant.strategy.candidate import BacktestSpec, CompositionSpec, StrategyCandidate
+from rdagent.scenarios.gf_quant.strategy.candidate import (
+    BacktestSpec,
+    CompositionSpec,
+    SignalSpec,
+    StrategyCandidate,
+)
 from rdagent.scenarios.gf_quant.strategy.composition import build_target_weights
+from rdagent.scenarios.gf_quant.strategy.signal import (
+    apply_missing_value,
+    apply_neutral_rank_fill,
+    apply_signal,
+    blend_member_panels,
+    build_factor_score,
+    blend_rank_panels,
+    interaction_rank_panels,
+)
 from rdagent.scenarios.gf_quant.strategy.costs import (
     BUY_COST_BPS,
     ROUND_TRIP_COST_BPS,
@@ -73,6 +87,7 @@ __all__ = [
     "PortfolioResult",
     "ROUND_TRIP_COST_BPS",
     "SELL_COST_BPS",
+    "SignalSpec",
     "StrategyAcceptancePolicy",
     "StrategyAcceptanceService",
     "StrategyCandidate",
@@ -81,6 +96,13 @@ __all__ = [
     "StrategyProposalContext",
     "StrategyRecord",
     "StrategyRegistry",
+    "apply_signal",
+    "apply_missing_value",
+    "apply_neutral_rank_fill",
+    "blend_rank_panels",
+    "blend_member_panels",
+    "build_factor_score",
+    "interaction_rank_panels",
     "build_target_weights",
     "aggregate_factor_contributions",
     "build_factor_universe_snapshot",

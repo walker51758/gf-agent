@@ -64,7 +64,8 @@ Copy-Item .env.example .env
 python -m rdagent.app.gf_rd_loop.factor --loop-n 5
 ```
 
-入口会自动读取项目根目录的 `.env`。主循环每轮依次完成 DeepSeek 假设与
+安装后也可使用等价的控制台入口 `gf-factor-agent factor --loop-n 5`（策略循环对应
+`gf-factor-agent strategy`）。入口会自动读取项目根目录的 `.env`。主循环每轮依次完成 DeepSeek 假设与
 DSL 因子生成、远端 SSH 评估、SQLite 登记和反馈写入；不要求本机存在
 `daily_pv.h5`、Qlib 或 Docker。
 
@@ -99,7 +100,7 @@ python scripts/gf_quant_remote_controller.py `
 算子契约同时存在于远端 worker 与本地校验器两处（worker 是单文件交付物，
 不能 import 本地包）；`test/scenarios/gf_quant/test_operators.py` 比对两份
 副本，新增算子时需同步更新 `docs/factor_operator_catalog.md` 与
-`prompts.yaml`。
+`rdagent/scenarios/gf_quant/experiment/prompts.yaml`。
 
 登记评估结果：
 
@@ -175,8 +176,10 @@ python -m pytest -q
   策略登记与因子到组合研究闭环）。
 - `rdagent/components/`、`rdagent/core/`：因子生成循环所需的最小 RD-Agent 基础设施。
 - `rdagent/scenarios/qlib/`：GF 因子循环仍需复用的 Qlib 因子基类和回测模板。
-- `scripts/`：远程控制器、远端 worker 与结果登记脚本。
-- `configs/`、`artifacts/live/`：候选配置与可复核评估结果。
+- `scripts/`：远程控制器、远端 worker（候选因子、基准、策略）、因子物化、状态归档与结果登记脚本。
+- `configs/`：候选配置与校准后的家族筛选标准。
+- `docs/`：算子目录、基准校准口径、策略层设计与业务说明文档。
+- `artifacts/live/`：运行期产物目录（评估结果与 epoch 报告），由运行过程生成，不入版本库。
 - `test/scenarios/gf_quant/`：项目专属核心测试。
 
-本项目保留上游 MIT License；评估结果仅用于研究筛选，不代表生产收益承诺。
+评估结果仅用于研究筛选，不代表生产收益承诺。

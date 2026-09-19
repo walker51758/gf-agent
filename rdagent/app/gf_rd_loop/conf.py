@@ -8,7 +8,7 @@ from pydantic_settings import SettingsConfigDict
 from rdagent.components.workflow.conf import BasePropSetting
 
 GF_LLM_BACKEND = "rdagent.oai.backend.LiteLLMAPIBackend"
-GF_LLM_CHAT_MODEL = "deepseek/deepseek-v4-flash"
+GF_LLM_CHAT_MODEL = "deepseek/deepseek-flash"
 
 
 class GFFactorPropSetting(BasePropSetting):

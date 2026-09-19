@@ -39,6 +39,7 @@ from rdagent.scenarios.gf_quant.conf import GF_SCENARIO_SETTINGS
 from rdagent.app.gf_rd_loop.conf import configure_gf_llm_backend
 from rdagent.scenarios.gf_quant.registry import FactorRegistry
 from rdagent.scenarios.gf_quant.strategy.candidate import StrategyCandidate
+from rdagent.scenarios.gf_quant.strategy.deployment import DeploymentPolicy
 from rdagent.scenarios.gf_quant.strategy.orchestrator import (
     GFQuantOrchestrator,
     OuterEpochConfig,
@@ -216,6 +217,23 @@ def load_epoch_windows(path: str | Path) -> list[dict[str, str]]:
     return windows
 
 
+def _load_json_object(path: str | Path | None, label: str) -> dict[str, Any] | None:
+    """Load an optional request-level configuration object from JSON.
+
+    ``None`` means the section was not requested.  A file that exists must hold
+    a JSON object: the two consumers (the audit sections and the walk-forward
+    window sizes) both carry calibrated inputs this builder must not invent, so
+    a malformed file is refused rather than silently skipped.
+    """
+
+    if path is None:
+        return None
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(payload, Mapping):
+        raise ValueError(f"{label} file must contain a JSON object")
+    return dict(payload)
+
+
 class EpochBoundStrategyService:
     """``StrategyAcceptanceService`` plus knowledge of the current epoch.
 
@@ -268,6 +286,15 @@ class MaterializingRemoteStrategyEvaluator:
     candidate's factors, and each trial in an epoch proposes a different factor
     subset, so the artifact set is built per candidate rather than once per
     epoch.  Materialization is injectable so tests never touch SSH.
+
+    The inner evaluator is **kept**, not discarded.  It is the only object that
+    holds the frozen provenance (snapshot, working set, artifact set, evaluation
+    window), and the governance manifest needs exactly those facts -- a wrapper
+    that built the evaluator, called it and dropped it would leave every
+    provenance field empty while still looking like a healthy manifest.
+    ``manifest_facts`` therefore delegates to the inner instance and raises when
+    there is nothing to delegate to, so a missing provenance can never be
+    mistaken for an empty one.
     """
 
     def __init__(
@@ -281,6 +308,9 @@ class MaterializingRemoteStrategyEvaluator:
         rebalance_frequency: str = "monthly",
         materializer: Callable[..., Any] | None = None,
         remote_evaluator_factory: Callable[..., Any] | None = None,
+        audit: Mapping[str, Any] | None = None,
+        walk_forward: Mapping[str, Any] | None = None,
+        manifest: Mapping[str, Any] | None = None,
     ) -> None:
         if rebalance_frequency not in REBALANCE_FREQUENCIES:
             raise ValueError(f"rebalance_frequency must be one of {REBALANCE_FREQUENCIES}")
@@ -291,6 +321,17 @@ class MaterializingRemoteStrategyEvaluator:
         self.settings = settings
         self.rebalance_frequency = rebalance_frequency
         self.remote_evaluator_factory = remote_evaluator_factory
+        # Request-level audit objects (governance + result-report audits).  They
+        # are configuration, not constants: the data-leakage tables and the
+        # walk-forward window sizes are calibrated upstream, and the emission
+        # switch asks for the worker-side attestation.  All default to None,
+        # which means "do not request that section" -- nothing is invented here.
+        self.audit = audit
+        self.walk_forward = walk_forward
+        self.manifest = manifest
+        # The most recent inner evaluator, so ``manifest_facts`` can read the
+        # provenance of the artifact set that actually produced the last result.
+        self._last_evaluator: Any = None
         from rdagent.scenarios.gf_quant.strategy.artifacts import (
             FactorArtifactCache,
             materialize_factor_artifact_set,
@@ -312,6 +353,24 @@ class MaterializingRemoteStrategyEvaluator:
             materializer=materializer or materialize_factor_artifact_set,
         )
 
+    def manifest_facts(self) -> dict[str, Any]:
+        """Provenance of the artifact set behind the last evaluation.
+
+        Raises when nothing has been evaluated yet or the inner evaluator cannot
+        supply facts: an absent provenance must surface as a failure, never as a
+        manifest whose provenance fields are quietly empty.
+        """
+
+        inner = self._last_evaluator
+        if inner is None:
+            raise ValueError(
+                "strategy evaluator has no provenance yet: manifest facts are only available after an evaluation"
+            )
+        facts = getattr(inner, "manifest_facts", None)
+        if not callable(facts):
+            raise ValueError("strategy evaluator does not provide manifest facts")
+        return dict(facts())
+
     def __call__(self, candidate: StrategyCandidate) -> StrategyEvaluation:
         from rdagent.scenarios.gf_quant.strategy.remote import RemoteStrategyEvaluator
 
@@ -330,7 +389,17 @@ class MaterializingRemoteStrategyEvaluator:
                 rebalance_frequency=self.rebalance_frequency,
             )
         )
-        return evaluator(candidate)
+        result = evaluator(
+            candidate,
+            audit=self.audit,
+            walk_forward=self.walk_forward,
+            manifest=self.manifest,
+        )
+        # Only remember an evaluator that can actually answer the provenance
+        # question, so a substitute that cannot is reported as absent rather
+        # than being cached and then treated as a fact source.
+        self._last_evaluator = evaluator if callable(getattr(evaluator, "manifest_facts", None)) else None
+        return result
 
 
 # Backward-compatible name used by the first integration tests.
@@ -353,6 +422,9 @@ def build_strategy_orchestrator(
     artifact_materializer: Callable[..., Any] | None = None,
     remote_evaluator_factory: Callable[..., Any] | None = None,
     snapshot_dir: str | Path | None = None,
+    audit: Mapping[str, Any] | None = None,
+    walk_forward: Mapping[str, Any] | None = None,
+    manifest: Mapping[str, Any] | None = None,
 ) -> GFQuantOrchestrator:
     """Assemble the real loop: LLM proposals, remote evaluation, demand research.
 
@@ -362,6 +434,16 @@ def build_strategy_orchestrator(
 
     Transaction costs are owned by the strategy execution layer and cannot be
     changed by this builder, settings, environment variables or the CLI.
+
+    ``audit`` / ``walk_forward`` / ``manifest`` are request-level configuration
+    for the audit, walk-forward and manifest sections.  They default to
+    ``None``, which means the section is simply not requested: the two injected
+    inputs they need (the data-leakage availability tables and the walk-forward
+    window sizes) are calibrated upstream and are deliberately not invented
+    here.  The three governance switches on the acceptance service follow the
+    same rule -- ``emit_manifest`` and ``reproducibility_check`` turn on exactly
+    when a manifest was asked for, and the deployment gate is enabled only
+    alongside them.
     """
 
     from rdagent.scenarios.gf_quant.mining import RDAGentDSLProposer
@@ -393,6 +475,9 @@ def build_strategy_orchestrator(
             rebalance_frequency=rebalance_frequency,
             materializer=artifact_materializer,
             remote_evaluator_factory=remote_evaluator_factory,
+            audit=audit,
+            walk_forward=walk_forward,
+            manifest=manifest,
         )
 
     service = EpochBoundStrategyService(
@@ -405,6 +490,13 @@ def build_strategy_orchestrator(
                 min_positive_return_years=2,
             ),
             factor_registry=factor_registry,
+            # The governance reports only exist when a manifest was asked for:
+            # without the worker attestation there is nothing to check
+            # reproducibility against, and a deployment verdict built on absent
+            # evidence would be a claim this builder did not earn.
+            emit_manifest=manifest is not None,
+            reproducibility_check=manifest is not None,
+            deployment_policy=DeploymentPolicy() if manifest is not None else None,
         ),
         make_remote_evaluator,
     )
@@ -462,6 +554,26 @@ def main(
         Path | None,
         typer.Option(help="Optional JSON list of per-epoch data/evaluation windows."),
     ] = None,
+    audit_config: Annotated[
+        Path | None,
+        typer.Option(help="Optional JSON object with the request-level audit sections."),
+    ] = None,
+    walk_forward_config: Annotated[
+        Path | None,
+        typer.Option(help="Optional JSON object with the walk-forward window sizes."),
+    ] = None,
+    governance_report: Annotated[
+        bool,
+        typer.Option(
+            "--governance-report",
+            help=(
+                "Emit all three governance reports together: the strategy manifest, the reproducibility "
+                "verdict and the deployment band. Without --audit-config and --walk-forward-config the "
+                "deployment band is always research_only, because the evidence those sections carry is "
+                "then absent."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Run the remote-first GF strategy research loop over N outer epochs."""
     if rebalance_frequency not in REBALANCE_FREQUENCIES:
@@ -482,6 +594,12 @@ def main(
             exploratory_factor_rounds=exploratory_factor_rounds,
         ),
         snapshot_dir=snapshot_dir,
+        # The audit tables and walk-forward window sizes come from files the
+        # upstream calibration owns; this CLI only forwards them, never guesses
+        # them.  A missing file means that section is not requested.
+        audit=_load_json_object(audit_config, "audit_config"),
+        walk_forward=_load_json_object(walk_forward_config, "walk_forward_config"),
+        manifest={} if governance_report else None,
     )
     windows = load_epoch_windows(epoch_windows) if epoch_windows is not None else None
     if windows is not None and len(windows) < epochs:

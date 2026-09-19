@@ -424,6 +424,7 @@ def test_strategy_service_accepts_a_valid_candidate(tmp_path) -> None:
     assert len(result.record.metadata["return_profile"]["dates"]) == len(evaluation.returns)
 
 
+@pytest.mark.slow
 def test_strategy_service_rejects_gate_failures_fail_closed(tmp_path) -> None:
     evaluation = _skilled_backtest()
     metrics = dict(evaluation.metrics)
@@ -518,6 +519,7 @@ def test_strategy_policy_caps_stability_gate_to_bound_single_year_window() -> No
     assert "strategy_valid_years" in failures_multi
 
 
+@pytest.mark.slow
 def test_strategy_policy_requires_the_system_execution_cost_facts() -> None:
     pinned = StrategyAcceptancePolicy(min_observations=100, min_avg_holdings=4.0, min_sharpe=0.3)
     assert pinned.execution_costs() == execution_costs_metrics()
@@ -578,6 +580,7 @@ def test_strategy_service_marks_overlapping_strategies_as_duplicates(tmp_path) -
     assert not again.dedup.is_duplicate
 
 
+@pytest.mark.slow
 def test_strategy_service_records_referenced_factors(tmp_path) -> None:
     factor_registry = FactorRegistry(tmp_path / "factors.sqlite")
     factor_registry.upsert(

@@ -107,7 +107,7 @@ class GFScenarioSettings(ExtendedBaseSettings):
     llm_backend: str = "rdagent.oai.backend.LiteLLMAPIBackend"
     """LLM backend class used by the GF agent (default: LiteLLM)."""
 
-    llm_chat_model: str = "deepseek/deepseek-v4-flash"
+    llm_chat_model: str = "deepseek/deepseek-flash"
     """LiteLLM chat model used by the GF agent."""
 
     deepseek_api_key_env: str = "GFAGENT_DEEPSEEK_API_KEY"

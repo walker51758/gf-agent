@@ -14,7 +14,12 @@ from rdagent.scenarios.gf_quant.strategy.artifacts import (
     FactorArtifactVersion,
     artifact_set_id_for,
 )
-from rdagent.scenarios.gf_quant.strategy.candidate import BacktestSpec, CompositionSpec, StrategyCandidate
+from rdagent.scenarios.gf_quant.strategy.candidate import (
+    BacktestSpec,
+    CompositionSpec,
+    SignalSpec,
+    StrategyCandidate,
+)
 from rdagent.scenarios.gf_quant.strategy.remote import RemoteStrategyEvaluator
 from rdagent.scenarios.gf_quant.strategy.snapshot import build_factor_universe_snapshot, build_factor_working_set
 from scripts.gf_quant_strategy_worker import run_request
@@ -130,12 +135,39 @@ def test_standalone_strategy_worker_smoke_and_result_parser(tmp_path) -> None:
     evaluation = evaluator._result_from_payload(candidate, request, payload)
 
     assert payload["status"] == "success"
+    # Truthful audit self-description: the default candidate blends the factor
+    # ranks with equal weights, which supports no selectable factor weights.
     assert payload["audit"]["factor_score_weights_supported"] is False
+    assert payload["audit"]["score_combination"] == "equal_weight_cross_sectional_percentile_rank"
     assert set(payload["factor_contributions"]) == {"value", "quality"}
     assert evaluation.metrics["observations"] == 65
     assert evaluation.metrics["metrics_by_year"]
     assert len(evaluation.returns) == 65
     assert (tmp_path / "portfolio.parquet").exists()
+
+
+def test_strategy_worker_audit_reports_fixed_weight_blend(tmp_path) -> None:
+    """A blend_weights candidate must be declared as weighted in the audit."""
+
+    evaluator, candidate = _fixture(tmp_path)
+    blended = StrategyCandidate(
+        name="remote_smoke_blend",
+        universe="csi_all",
+        composition=candidate.composition,
+        factor_names=candidate.factor_names,
+        rule=candidate.rule,
+        backtest=candidate.backtest,
+        signal=SignalSpec(blend_weights={"value": 0.7, "quality": 0.3}),
+    )
+    request = evaluator.request_for(blended)
+    request["portfolio_artifact_path"] = str(tmp_path / "portfolio_blend.parquet")
+    request_path, result_path = tmp_path / "request_blend.json", tmp_path / "result_blend.json"
+    request_path.write_text(json.dumps(request), encoding="utf-8")
+    payload = run_request(request_path, result_path)
+
+    assert payload["status"] == "success", payload
+    assert payload["audit"]["factor_score_weights_supported"] is True
+    assert payload["audit"]["score_combination"] == "fixed_weight_blend_of_cross_sectional_percentile_rank"
 
 
 def test_strategy_worker_fails_closed_on_provenance_and_coverage(tmp_path) -> None:
@@ -193,3 +225,36 @@ def test_result_parser_rejects_tampered_cost_metrics(tmp_path) -> None:
 
     with pytest.raises(RuntimeError, match="fixed execution costs"):
         evaluator._result_from_payload(candidate, request, payload)
+
+
+def test_result_parser_passes_through_the_audit_report(tmp_path) -> None:
+    """``audit_report`` rides into StrategyEvaluation; absent means "no audit"."""
+
+    evaluator, candidate = _fixture(tmp_path)
+    audit = {"cost_sensitivity": {}}
+    request = evaluator.request_for(candidate, audit=audit)
+    request["portfolio_artifact_path"] = str(tmp_path / "portfolio_audit.parquet")
+    request_path, result_path = tmp_path / "request_audit.json", tmp_path / "result_audit.json"
+    request_path.write_text(json.dumps(request), encoding="utf-8")
+    payload = run_request(request_path, result_path)
+
+    evaluation = evaluator._result_from_payload(candidate, request, payload)
+    assert evaluation.audit_report is not None
+    assert set(evaluation.audit_report) == {"cost_sensitivity"}
+    assert evaluation.audit_report["cost_sensitivity"] == payload["audit_report"]["cost_sensitivity"]
+
+    # Without an audit object the result has no audit_report at all, and the
+    # evaluation field stays None (existing construction paths unaffected).
+    plain_request = evaluator.request_for(candidate)
+    plain_request["portfolio_artifact_path"] = str(tmp_path / "portfolio_plain.parquet")
+    plain_path, plain_result = tmp_path / "request_plain.json", tmp_path / "result_plain.json"
+    plain_path.write_text(json.dumps(plain_request), encoding="utf-8")
+    plain_payload = run_request(plain_path, plain_result)
+    assert "audit_report" not in plain_payload
+    plain_evaluation = evaluator._result_from_payload(candidate, plain_request, plain_payload)
+    assert plain_evaluation.audit_report is None
+
+    malformed = dict(plain_payload)
+    malformed["audit_report"] = "not-an-object"
+    with pytest.raises(RuntimeError, match="audit report is malformed"):
+        evaluator._result_from_payload(candidate, plain_request, malformed)

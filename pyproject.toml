@@ -8,7 +8,6 @@ version = "0.1.0"
 description = "GF A-share factor research agent"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {file = "LICENSE"}
 dynamic = ["dependencies"]
 
 [project.optional-dependencies]
@@ -28,6 +27,9 @@ dependencies = {file = ["requirements.txt"]}
 
 [tool.pytest.ini_options]
 testpaths = ["test"]
+markers = [
+    "slow: end-to-end strategy runs (worker round-trips, full backtests, benchmark calibration). Deselect with -m \"not slow\".",
+]
 
 [tool.ruff]
 line-length = 120

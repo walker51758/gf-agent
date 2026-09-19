@@ -155,6 +155,7 @@ def _multi_year_panel() -> tuple[pd.DataFrame, pd.DataFrame]:
     return factor, close
 
 
+@pytest.mark.slow
 def test_worker_metrics_by_year_covers_every_calendar_year() -> None:
     factor, close = _multi_year_panel()
     config = EvaluationConfig(
@@ -175,6 +176,7 @@ def test_worker_metrics_by_year_covers_every_calendar_year() -> None:
     assert metrics["stability_by_year"]["2020"].keys() == {"annualized_return", "sharpe", "days"}
 
 
+@pytest.mark.slow
 def test_worker_metrics_by_year_attributes_observations_to_signal_year() -> None:
     factor, close = _multi_year_panel()
     config = EvaluationConfig(
@@ -209,6 +211,7 @@ def test_worker_metrics_by_year_attributes_observations_to_signal_year() -> None
     )
 
 
+@pytest.mark.slow
 def test_worker_aggregate_metrics_are_unchanged_by_the_annual_breakdown() -> None:
     factor, close = _multi_year_panel()
     config = EvaluationConfig(

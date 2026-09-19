@@ -31,6 +31,21 @@ def _canonical_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
 
+def _require_mapping(value: Any, message: str) -> None:
+    """Refuse a non-object request section before it is coerced.
+
+    ``dict([])`` silently yields ``{}``, ``dict("abc")`` raises a
+    ``ValueError`` about sequence elements and ``dict(7)`` a ``TypeError`` --
+    three different shapes for what is the same caller mistake, and none of
+    them the message the worker's validator raises.  Refusing here keeps the
+    "both ends raise the same message" contract true at the transport layer
+    too, where ``request_for`` is the only guard the caller meets.
+    """
+
+    if not isinstance(value, Mapping):
+        raise ValueError(message)
+
+
 def evaluate_strategy_remote(
     request: Mapping[str, Any], *, worker_path: Path, settings: RemoteSettings
 ) -> dict[str, Any]:
@@ -102,7 +117,37 @@ class RemoteStrategyEvaluator:
         self.remote_evaluate = remote_evaluate
         self.worker_path = worker_path or Path(__file__).parents[4] / "scripts" / "gf_quant_strategy_worker.py"
 
-    def request_for(self, candidate: StrategyCandidate) -> dict[str, Any]:
+    def manifest_facts(self) -> dict[str, Any]:
+        """The provenance facts a manifest (roadmap 10.8) is built from.
+
+        Read straight off the frozen snapshot, working set, artifact set and
+        the evaluation window this evaluator was constructed with -- nothing is
+        recomputed and nothing is invented, so the manifest can only ever restate
+        what the request already carried.
+        """
+
+        return {
+            "snapshot_id": self.snapshot.snapshot_id,
+            "snapshot_checksum": self.snapshot.checksum,
+            "working_set_id": self.working_set.working_set_id,
+            "working_set_snapshot_checksum": self.working_set.snapshot_checksum,
+            "data_cutoff": self.snapshot.data_cutoff,
+            "artifact_set_id": self.artifact_set.artifact_set_id,
+            "factor_ids": [factor.as_payload() for factor in self.artifact_set.factors],
+            "evaluation": {
+                "start": self.evaluation_start,
+                "end": self.evaluation_end,
+                "rebalance_frequency": self.rebalance_frequency,
+            },
+        }
+
+    def request_for(
+        self,
+        candidate: StrategyCandidate,
+        audit: Mapping[str, Any] | None = None,
+        walk_forward: Mapping[str, Any] | None = None,
+        manifest: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
         factor_by_name = {factor.name: factor for factor in self.working_set.factors}
         artifact_by_name = {factor.name: factor for factor in self.artifact_set.factors}
         if set(candidate.factor_names) != set(artifact_by_name):
@@ -116,7 +161,10 @@ class RemoteStrategyEvaluator:
             f"{self.settings.remote_work_dir.rstrip('/')}/strategy_artifacts/"
             f"{safe_name}_{start_tag}_{end_tag}.parquet"
         )
-        return {
+        # Result-report audits (roadmap 9.3/9.4/10.2/10.3/10.4) ride at the
+        # request level: enabling one never enters the candidate payload, so the
+        # strategy identity hash of the candidate is untouched.
+        request = {
             "schema_version": 1,
             "snapshot_id": self.snapshot.snapshot_id,
             "snapshot_checksum": self.snapshot.checksum,
@@ -135,9 +183,35 @@ class RemoteStrategyEvaluator:
             "close_field": self.settings.evaluation_close_field,
             "portfolio_artifact_path": portfolio_path,
         }
+        if audit is not None:
+            _require_mapping(audit, "request audit must be an object")
+            request["audit"] = dict(audit)
+        # WalkForwardEvaluation (roadmap 10.1) is the one evaluation that
+        # re-runs the engine -- once per segment -- so its configuration rides
+        # beside ``evaluation`` rather than inside the report-only ``audit``
+        # object.  It still never enters the candidate payload, so the
+        # strategy identity hash is untouched either way.
+        if walk_forward is not None:
+            _require_mapping(walk_forward, "request walk_forward must be an object")
+            request["walk_forward"] = dict(walk_forward)
+        # StrategyManifestEmitter (roadmap 10.8) is the same shape again: a
+        # request-level switch with no settings of its own (MANIFEST_KEYS is
+        # empty), asking the worker to attest the code, environment and data
+        # window behind the result.  It stays out of the candidate payload, so
+        # enabling it cannot move a strategy identity hash either.
+        if manifest is not None:
+            _require_mapping(manifest, "request manifest must be an object")
+            request["manifest"] = dict(manifest)
+        return request
 
-    def __call__(self, candidate: StrategyCandidate) -> StrategyEvaluation:
-        request = self.request_for(candidate)
+    def __call__(
+        self,
+        candidate: StrategyCandidate,
+        audit: Mapping[str, Any] | None = None,
+        walk_forward: Mapping[str, Any] | None = None,
+        manifest: Mapping[str, Any] | None = None,
+    ) -> StrategyEvaluation:
+        request = self.request_for(candidate, audit, walk_forward, manifest)
         payload = self.remote_evaluate(
             request,
             worker_path=self.worker_path,
@@ -181,6 +255,9 @@ class RemoteStrategyEvaluator:
             raise RuntimeError("strategy result contributions do not match candidate factors")
         if not payload.get("artifact_path") or not payload.get("artifact_checksum"):
             raise RuntimeError("strategy result is missing remote artifact provenance")
+        audit_report = payload.get("audit_report")
+        if audit_report is not None and not isinstance(audit_report, Mapping):
+            raise RuntimeError("strategy result audit report is malformed")
         returns = pd.Series([float(value) for value in values], index=pd.to_datetime(dates), name="strategy_returns")
         return StrategyEvaluation(
             metrics={**dict(metrics), "metrics_by_year": dict(by_year)},
@@ -188,4 +265,5 @@ class RemoteStrategyEvaluator:
             artifact_path=str(payload["artifact_path"]),
             artifact_checksum=str(payload["artifact_checksum"]),
             factor_contributions={str(key): dict(value) for key, value in contributions.items()},
+            audit_report=None if audit_report is None else {str(key): dict(value) for key, value in audit_report.items()},
         )

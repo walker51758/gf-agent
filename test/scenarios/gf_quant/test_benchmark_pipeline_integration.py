@@ -121,6 +121,7 @@ def _candidate_metrics(rank_ic: float) -> dict:
     }
 
 
+@pytest.mark.slow
 def test_synthetic_benchmark_pool_calibrates_and_gates_candidates(tmp_path: Path) -> None:
     dates = _calendar()
     close = _write_base(tmp_path / "base", dates)

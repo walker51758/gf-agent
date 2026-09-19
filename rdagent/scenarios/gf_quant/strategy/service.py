@@ -17,7 +17,7 @@ Mirrors :mod:`rdagent.scenarios.gf_quant.service` but for the strategy layer:
 from __future__ import annotations
 
 import math
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -33,7 +33,10 @@ from rdagent.scenarios.gf_quant.strategy.costs import (
     SELL_COST_BPS,
     execution_costs_metrics,
 )
+from rdagent.scenarios.gf_quant.strategy.deployment import DeploymentPolicy, deployment_verdict
+from rdagent.scenarios.gf_quant.strategy.manifest import build_strategy_manifest
 from rdagent.scenarios.gf_quant.strategy.registry import StrategyRecord, StrategyRegistry, strategy_id_for
+from rdagent.scenarios.gf_quant.strategy.reproducibility import reproducibility_report
 
 PROFILE_KEY = "return_profile"
 """Registry metadata key holding the compact daily return trace used for dedup."""
@@ -204,6 +207,11 @@ class StrategyEvaluation:
     artifact_path: str | None = None
     artifact_checksum: str | None = None
     factor_contributions: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
+    # Request-level result-report audits (roadmap 9.4/10.2/10.3/10.4).  The
+    # worker emits ``audit_report`` only when the request carried an ``audit``
+    # object, so absent means "no audit was requested"; the audits are
+    # read-only report output and never part of the candidate payload.
+    audit_report: Mapping[str, Mapping[str, Any]] | None = None
 
     @classmethod
     def from_result(cls, result: PortfolioResult, **overrides: Any) -> StrategyEvaluation:
@@ -265,6 +273,30 @@ def _iso_indexed(series: pd.Series) -> pd.Series:
     )
 
 
+def _provenance_text(value: Any) -> str:
+    """A provenance string, with ``None`` read as *absent*, not as ``"None"``.
+
+    ``facts.get(key, "")`` substitutes its default only when the key is missing,
+    so a key that is present and holds ``None`` would be stringified into the
+    literal ``"None"`` -- a value ``reproducibility._is_carried`` counts as
+    carried, which would let two manifests agree on a field neither of them
+    actually carries.  ``None`` is normalised to the same empty string the
+    absent key produces.
+    """
+
+    return "" if value is None else str(value)
+
+
+def _provenance_mapping(value: Any) -> dict[str, Any]:
+    """A provenance mapping, with ``None`` read as absent.
+
+    Same reading as :func:`_provenance_text`: an evaluation window that is not
+    carried is an empty mapping, not a reason to fail building the manifest.
+    """
+
+    return {} if value is None else dict(value)
+
+
 class StrategyAcceptanceService:
     """Gate strategy candidates and register the outcome."""
 
@@ -276,6 +308,9 @@ class StrategyAcceptanceService:
         policy: StrategyAcceptancePolicy | None = None,
         deduplicator: FactorDeduplicator | None = None,
         factor_registry: FactorRegistry | None = None,
+        emit_manifest: bool = False,
+        reproducibility_check: bool = False,
+        deployment_policy: DeploymentPolicy | None = None,
     ) -> None:
         self.registry = registry
         self.evaluator = evaluator
@@ -284,6 +319,27 @@ class StrategyAcceptanceService:
         # Read-only reference: lets a strategy be audited against the factors it
         # claims to use.  Nothing is ever written to the factor registry here.
         self.factor_registry = factor_registry
+        # Governance switches (roadmap 10.8/10.9/10.10).  All three default off,
+        # and the registry record is byte-for-byte what it was before this batch
+        # while they are off -- none of them touches the candidate payload, so
+        # none of them can move a strategy identity hash.
+        #
+        # The three travel together, and the reason is that they are one
+        # evidence chain rather than three independent knobs: the manifest is
+        # what gets recorded, the reproducibility verdict is a comparison
+        # *against that recorded manifest*, and the deployment gate reads the
+        # verdict.  Enabling the check without recording the manifest leaves
+        # nothing to compare against, so it would compare each manifest with
+        # itself and report agreement forever -- an enabled check that can never
+        # fail.  That combination is refused here instead.
+        self.emit_manifest = bool(emit_manifest)
+        self.reproducibility_check = bool(reproducibility_check)
+        if self.reproducibility_check and not self.emit_manifest:
+            raise ValueError(
+                "reproducibility_check requires emit_manifest: the check compares against the manifest "
+                "on record, so nothing can be verified unless that manifest is written"
+            )
+        self.deployment_policy = deployment_policy
         self._expected_evaluation_years: int | None = None
 
     def bind_evaluation_window(self, evaluation_start: str, evaluation_end: str) -> None:
@@ -348,6 +404,202 @@ class StrategyAcceptanceService:
         )
         return self.deduplicator.compare(signature, existing)
 
+    def _manifest_facts(self) -> dict[str, Any]:
+        """Provenance facts for the manifest, read from the bound evaluator.
+
+        The evaluator holds the frozen snapshot, working set, artifact set and
+        evaluation window, so it is the only place these facts exist -- and an
+        evaluator that cannot supply them is a hard error, not a quiet zero.
+        Returning ``{}`` here would produce a manifest whose provenance fields
+        are all empty strings while still reading as a healthy record, which is
+        exactly the failure mode that lets an undocumented provenance gap pass
+        for a fact.  Absent provenance is reported as absent.
+        """
+
+        facts = getattr(self.evaluator, "manifest_facts", None)
+        if not callable(facts):
+            raise ValueError("strategy evaluator does not provide manifest facts")
+        resolved = facts()
+        if not isinstance(resolved, Mapping):
+            raise ValueError("evaluator manifest facts must be an object")
+        return dict(resolved)
+
+    def _build_manifest(
+        self,
+        candidate: StrategyCandidate,
+        strategy_id: str,
+        evaluation: StrategyEvaluation,
+        failures: Sequence[str],
+    ) -> dict[str, Any]:
+        """Assemble the roadmap 10.8 manifest from facts already on hand.
+
+        ``provenance_available`` is written explicitly.  It is ``False`` when the
+        evaluator could not supply provenance facts at all (no ``manifest_facts``,
+        or the call raised): the manifest then says so rather than carrying a row
+        of empty strings that a reader would take for real values, and
+        :mod:`reproducibility` turns that into ``not_reproducible``.  That is one
+        of the ways this flag is set, not the only one; the others are below.
+
+        ``None`` is read as *absent* throughout.  ``facts.get(key, default)``
+        substitutes its default only when the key is missing, so a key present
+        with ``None`` would otherwise be stringified into ``"None"`` -- a value
+        :func:`reproducibility._is_carried` counts as carried -- or, for the two
+        collection-valued facts, crash the builder outright.  Every fact goes
+        through the same normalisation, so a ``None`` lands on the empty shape of
+        its own type: one of ``_is_carried``'s four, not all four.  A fact that
+        arrives *already* empty (``""``, ``{}``, ``[]``) is a different case and
+        is not reported by this normalisation.
+
+        Absence is then reported by one of two mechanisms, never by neither:
+
+        * the facts that are members of ``REPRODUCIBILITY_IDENTITY_FIELDS`` --
+          ``snapshot_checksum``, ``working_set_snapshot_checksum``,
+          ``artifact_set_id``, ``evaluation`` -- are reported *per field*: once
+          normalised, ``_is_carried`` names each absent one as
+          ``field_unknown:<field>``.
+        * the remaining provenance facts -- ``snapshot_id``, ``working_set_id``,
+          ``data_cutoff``, ``factor_ids`` -- are not in that set, so nothing
+          downstream would ever notice their absence; when one of them arrives
+          as ``None`` it is recorded as the empty shape of its type *and*
+          reported through the manifest-level flag above, which forces
+          ``not_reproducible``.  (``execution_costs`` and ``worker_attestation``
+          are not facts of this kind: the first comes from the policy, the second
+          is carried whole or not at all.)
+
+        The flag reports the ``None`` shape, so a fact that reaches this builder
+        as ``None`` can never read as healthy on any of the four.  It does *not*
+        report the other three empty shapes ``_is_carried`` rejects, nor a fact
+        whose value is of some other type: each is recorded as whatever
+        ``_provenance_text`` / ``_provenance_mapping`` make of it -- ``{}`` in a
+        text fact is stringified into ``"{}"`` -- and since nothing downstream
+        polices these four, such a value would pass for a real one.  What keeps
+        that from happening sits upstream, not here.  ``snapshot_id`` and
+        ``working_set_id`` are ids derived from the frozen contents, and the
+        frozen dataclasses refuse a value that disagrees with them, so the
+        ``str`` a production evaluator hands over is already the derived,
+        non-empty id.  That is an equality check on a value that reached the
+        dataclass as a ``str``: it constrains which string a well-behaved
+        producer supplies, and it does not constrain the type of whatever a
+        facts mapping carries, which this builder does not police either.
+        ``data_cutoff`` is refused empty by the snapshot builder (one level
+        weaker: the dataclass itself does not check it).  ``factor_ids`` needs no
+        such guard, because an empty list is a value rather than an absence -- a
+        rule-only strategy has no factors -- and that is exactly why ``None``,
+        the shape that would be a lie, is the one the flag reports.  Either way
+        the flag cannot say *which* fact is absent, and it stays silent about
+        facts the evaluator never claimed to carry in the first place.
+        """
+
+        worker_attestation: Any = None
+        if evaluation.audit_report is not None:
+            section = evaluation.audit_report.get("manifest")
+            if isinstance(section, Mapping):
+                worker_attestation = dict(section)
+
+        provenance_available = True
+        try:
+            facts = self._manifest_facts()
+        except ValueError:
+            facts = {}
+            provenance_available = False
+
+        if provenance_available and not facts:
+            # An empty but successfully returned facts object carries no
+            # information either; treat it the same as an absent one.
+            provenance_available = False
+
+        # Provenance facts that no downstream check polices (see the docstring).
+        # Each absent one is recorded as its empty shape and flagged here.
+        unpoliced_absent = [
+            name for name in ("snapshot_id", "working_set_id", "data_cutoff") if facts.get(name) is None
+        ]
+        factor_ids = facts.get("factor_ids")
+        if factor_ids is None:
+            factor_ids = []
+            unpoliced_absent.append("factor_ids")
+        if unpoliced_absent:
+            provenance_available = False
+
+        return build_strategy_manifest(
+            strategy_id=strategy_id,
+            strategy_name=candidate.name,
+            canonical_payload=candidate.canonical_payload(),
+            evaluation=_provenance_mapping(facts.get("evaluation")),
+            execution_costs=self.policy.execution_costs(),
+            artifact_set_id=_provenance_text(facts.get("artifact_set_id")),
+            factor_ids=factor_ids,
+            snapshot_id=_provenance_text(facts.get("snapshot_id")),
+            snapshot_checksum=_provenance_text(facts.get("snapshot_checksum")),
+            working_set_id=_provenance_text(facts.get("working_set_id")),
+            working_set_snapshot_checksum=_provenance_text(facts.get("working_set_snapshot_checksum")),
+            data_cutoff=_provenance_text(facts.get("data_cutoff")),
+            acceptance={
+                "status": "rejected" if failures else "accepted",
+                "gate_failures": list(failures),
+            },
+            worker_attestation=worker_attestation,
+            provenance_available=provenance_available,
+        )
+
+    def _recorded_manifest(self, strategy_id: str) -> dict[str, Any] | None:
+        """The manifest already on record for this strategy id, if any.
+
+        Reproducibility is a comparison against what was stored, so the second
+        emission of the same strategy id is what actually proves the identity
+        still holds.  A registry without a manifest for this id yields ``None``,
+        in which case :meth:`_governance_metadata` reports ``first_emission``.
+        """
+
+        record = self.registry.get(strategy_id)
+        if record is None:
+            return None
+        manifest = record.metadata.get("manifest")
+        return dict(manifest) if isinstance(manifest, Mapping) else None
+
+    def _governance_metadata(
+        self,
+        candidate: StrategyCandidate,
+        strategy_id: str,
+        evaluation: StrategyEvaluation,
+        failures: Sequence[str],
+        dedup: DedupResult | None,
+    ) -> dict[str, Any]:
+        """The three governance reports, in the order each consumes the previous.
+
+        Shared by the accepted and rejected paths: a rejected candidate is still
+        a candidate the governance layer has an opinion about, and roadmap 10.10
+        lists ``reject`` as one of its three outputs -- an acceptance gate wired
+        so that governance never runs on a failure would make that output
+        unreachable and the gate decorative.  ``dedup`` is ``None`` on the
+        rejected path (the redundancy comparison never runs there), which reads
+        as "not a duplicate", the permissive value.
+
+        All three live in ``metadata`` only -- no column, no status value and no
+        payload key is added, so the record shape is unchanged while the switches
+        are off.
+        """
+
+        metadata: dict[str, Any] = {}
+        manifest: dict[str, Any] | None = None
+        if self.emit_manifest and self.reproducibility_check:
+            manifest = self._build_manifest(candidate, strategy_id, evaluation, failures)
+            metadata["manifest"] = manifest
+            reference = self._recorded_manifest(strategy_id)
+            metadata["reproducibility"] = (
+                {**reproducibility_report(manifest, manifest), "mode": "first_emission"}
+                if reference is None
+                else {**reproducibility_report(reference, manifest), "mode": "comparison"}
+            )
+        if self.deployment_policy is not None:
+            metadata["deployment"] = deployment_verdict(
+                gate_failures=list(failures),
+                audit_report=evaluation.audit_report,
+                dedup_is_duplicate=bool(dedup.is_duplicate) if dedup is not None else False,
+                reproducibility=metadata.get("reproducibility"),
+                policy=self.deployment_policy,
+            )
+        return metadata
+
     def process(
         self,
         candidate: StrategyCandidate,
@@ -377,6 +629,12 @@ class StrategyAcceptanceService:
             "execution_costs": self.policy.execution_costs(),
         }
         if not passed:
+            # Governance runs on the rejected path too: roadmap 10.10 lists
+            # ``reject`` among its three outputs, and the deployment verdict is
+            # only reachable when the acceptance failures are handed to it.
+            # Leaving the record untraced here would make that whole band dead
+            # code.  ``dedup`` is absent because the redundancy comparison never
+            # runs for a candidate that failed acceptance.
             record = self.registry.upsert(
                 StrategyRecord(
                     strategy_id=strategy_id,
@@ -389,7 +647,12 @@ class StrategyAcceptanceService:
                     metrics=dict(evaluation.metrics),
                     artifact_path=evaluation.artifact_path,
                     artifact_checksum=evaluation.artifact_checksum,
-                    metadata=base_metadata,
+                    metadata={
+                        **base_metadata,
+                        **self._governance_metadata(
+                            candidate, strategy_id, evaluation, failures, dedup=None
+                        ),
+                    },
                 )
             )
             return StrategyProcessingResult(record, tuple(failures), evaluation=evaluation)
@@ -398,6 +661,7 @@ class StrategyAcceptanceService:
         metadata = {
             **base_metadata,
             "dedup_reason": dedup.reason if dedup.is_duplicate else "no_duplicate_signal",
+            **self._governance_metadata(candidate, strategy_id, evaluation, failures, dedup=dedup),
         }
         if evaluation.returns is not None:
             # Stored so a later candidate can be compared against this one; the
