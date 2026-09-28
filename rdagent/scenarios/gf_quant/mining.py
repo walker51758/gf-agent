@@ -7,6 +7,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from rdagent.log import rdagent_logger as logger
+from rdagent.scenarios.gf_quant.conf import FACTOR_PROPOSAL_LOGGER_TAG
 from rdagent.scenarios.gf_quant.developer.coder import describe_operators
 from rdagent.scenarios.gf_quant.metrics import format_factor_feedback
 from rdagent.scenarios.gf_quant.service import FactorAcceptanceService, FactorCandidate, ProcessingResult
@@ -50,12 +52,15 @@ family, hypothesis, and expression. Do not use future data.
 Previous multi-metric feedback:
 {feedback or 'No previous attempt.'}
 """.strip()
-        response = self.api_backend.build_messages_and_create_chat_completion(
-            user_prompt=user_prompt,
-            system_prompt="You are the factor proposal component of Microsoft RD-Agent(Q). Be concise and testable.",
-            json_mode=True,
-            json_target_type=dict[str, list[dict[str, str]]],
-        )
+        # The tag is what lets the backend raise the temperature for factor
+        # proposals alone (see ``FACTOR_PROPOSAL_LOGGER_TAG``).
+        with logger.tag(FACTOR_PROPOSAL_LOGGER_TAG):
+            response = self.api_backend.build_messages_and_create_chat_completion(
+                user_prompt=user_prompt,
+                system_prompt="You are the factor proposal component of Microsoft RD-Agent(Q). Be concise and testable.",
+                json_mode=True,
+                json_target_type=dict[str, list[dict[str, str]]],
+            )
         payload = json.loads(response)
         candidates = payload.get("candidates", [])
         return [

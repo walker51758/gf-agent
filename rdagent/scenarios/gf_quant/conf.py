@@ -110,6 +110,20 @@ class GFScenarioSettings(ExtendedBaseSettings):
     llm_chat_model: str = "deepseek/deepseek-flash"
     """LiteLLM chat model used by the GF agent."""
 
+    factor_proposal_temperature: float = 2.0
+    """Chat temperature used for factor proposals only.
+
+    The vendor's parameter-settings page states only the default (1.0) and
+    per-task suggestions (up to 1.5), not the accepted range, so the bound was
+    measured: ``temperature=2.0`` is accepted by ``deepseek/deepseek-flash``
+    while 2.1 and 3.0 are rejected with "the valid range of temperature is
+    [0, 2]".  2.0 is therefore the endpoint's upper bound rather than a chosen
+    value.  It reaches the API
+    through the tag-scoped ``chat_model_map`` entry wired in
+    :func:`rdagent.app.gf_rd_loop.conf.configure_gf_llm_backend`; the strategy
+    proposer keeps the global ``chat_temperature``.
+    """
+
     deepseek_api_key_env: str = "GFAGENT_DEEPSEEK_API_KEY"
     """Env var holding the DeepSeek API key. It is wired into LiteLLM's
     ``DEEPSEEK_API_KEY`` at startup so no duplicate key is needed."""
@@ -201,3 +215,14 @@ class GFScenarioSettings(ExtendedBaseSettings):
 
 
 GF_SCENARIO_SETTINGS = GFScenarioSettings()
+
+FACTOR_PROPOSAL_LOGGER_TAG = "gf_factor_proposal"
+"""Logger tag the factor proposer runs under.
+
+The tag is the only per-call-site signal the LLM backend exposes, so it is what
+scopes the factor proposal temperature: ``LiteLLMAPIBackend.get_complete_kwargs``
+matches the tag as a substring and applies the matching ``chat_model_map`` entry
+to that call alone.  It is defined here, next to the setting it carries, and the
+proposer and the backend wiring both import it rather than repeating the string.
+"""
+

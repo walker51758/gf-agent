@@ -60,7 +60,10 @@ def configure_gf_llm_backend() -> None:
     from rdagent.oai.backend.litellm import LITELLM_SETTINGS
     from rdagent.oai.llm_conf import LLM_SETTINGS
 
-    from rdagent.scenarios.gf_quant.conf import GF_SCENARIO_SETTINGS
+    from rdagent.scenarios.gf_quant.conf import (
+        FACTOR_PROPOSAL_LOGGER_TAG,
+        GF_SCENARIO_SETTINGS,
+    )
 
     api_key = os.environ.get(GF_SCENARIO_SETTINGS.deepseek_api_key_env, "")
     if api_key:
@@ -71,3 +74,15 @@ def configure_gf_llm_backend() -> None:
     LLM_SETTINGS.backend = GF_SCENARIO_SETTINGS.llm_backend
     LITELLM_SETTINGS.chat_model = GF_SCENARIO_SETTINGS.llm_chat_model
     LITELLM_SETTINGS.chat_openai_base_url = GF_SCENARIO_SETTINGS.llm_base_url
+
+    # Factor proposals run under their own logger tag, so the backend's
+    # tag-scoped map can raise the temperature for them alone; the strategy
+    # proposer keeps the global ``chat_temperature``.  Merged rather than
+    # assigned so an operator-supplied map survives.
+    LITELLM_SETTINGS.chat_model_map = {
+        **LITELLM_SETTINGS.chat_model_map,
+        FACTOR_PROPOSAL_LOGGER_TAG: {
+            "model": GF_SCENARIO_SETTINGS.llm_chat_model,
+            "temperature": str(GF_SCENARIO_SETTINGS.factor_proposal_temperature),
+        },
+    }
