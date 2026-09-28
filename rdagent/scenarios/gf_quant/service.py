@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import math
 import sys
 from collections.abc import Callable, Iterable, Mapping, Sequence
@@ -24,6 +25,7 @@ from rdagent.scenarios.gf_quant.benchmark import (
 )
 from rdagent.scenarios.gf_quant.conf import GF_SCENARIO_SETTINGS
 from rdagent.scenarios.gf_quant.dedup import DedupResult, FactorDeduplicator, FactorSignature
+from rdagent.scenarios.gf_quant import gate_policy
 from rdagent.scenarios.gf_quant.registry import FactorFamily, FactorRecord, FactorRegistry, factor_id_for
 
 
@@ -168,9 +170,14 @@ class FactorAcceptanceService:
         benchmark_signatures: Sequence[BenchmarkFactorResult] | None = None,
         signature_dir: str | Path | None = None,
         settings: Any = GF_SCENARIO_SETTINGS,
+        active_gates: Sequence[str] | None = None,
     ) -> None:
         self.registry = registry
         self.evaluator = evaluator
+        # ``None`` means every calibrated gate is enforced.  A non-None tuple
+        # narrows which gate verdicts may fail a candidate; see
+        # :mod:`rdagent.scenarios.gf_quant.gate_policy` for the temporary regime.
+        self.active_gates = active_gates
         self.policy = policy or AcceptancePolicy()
         self.deduplicator = deduplicator or FactorDeduplicator()
         self.settings = settings
@@ -245,6 +252,7 @@ class FactorAcceptanceService:
             return_profile=evaluation.return_profile,
             require_profile=bool(getattr(self.settings, "benchmark_profile_required", False)),
         )
+        report = self._apply_gate_selection(report)
         metadata = {
             "standards_source": "calibrated",
             "benchmark_percentiles": dict(report.percentiles),
@@ -253,6 +261,30 @@ class FactorAcceptanceService:
             "standards": calibration.standards.to_payload(),
         }
         return report.passed, list(report.failures), report, metadata
+
+
+    def _apply_gate_selection(self, report: GateReport) -> GateReport:
+        """Narrow which gate verdicts may fail a candidate.
+
+        The gates themselves are all evaluated, and their verdicts are all still
+        reported: a gate the current selection suppresses is moved into
+        ``skipped_gates`` rather than disappearing, so a report can always show what
+        was measured and what was set aside.  With ``active_gates`` unset this is the
+        identity function.
+        """
+
+        if self.active_gates is None:
+            return report
+        kept, suppressed = gate_policy.partition(tuple(report.failures), self.active_gates)
+        if not suppressed:
+            return report
+        return dataclasses.replace(
+            report,
+            passed=not kept,
+            failures=kept,
+            skipped_gates=tuple(dict.fromkeys((*report.skipped_gates, *suppressed))),
+        )
+
 
     def _benchmark_redundancy(self, candidate: FactorCandidate, evaluation: EvaluationResult) -> dict[str, Any] | None:
         """Family-aware redundancy against the benchmark pool.
